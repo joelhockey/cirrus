@@ -1,0 +1,35 @@
+<project name="cirrus" default="war" basedir=".">
+
+  <property name="version" value="1.0" />
+
+  <target name="init">
+    <mkdir dir="target/classes" />
+    <mkdir dir="target/${ant.project.name}-${version}" />
+  </target>
+
+  <target name="compile" depends="init" description="compile">
+    <javac srcdir="src/main/java" destdir="target/classes"
+        debug="on" source="1.5" target="1.5" includeAntRuntime="false">
+      <classpath>
+        <fileset dir="lib" />
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="war" depends="compile" description="war">
+    <copy todir="target/${ant.project.name}-${version}">
+      <fileset dir="src/main/webapp" />
+    </copy>
+    <copy todir="target/${ant.project.name}-${version}/WEB-INF/classes"> 
+      <fileset dir="target/classes" />
+    </copy>
+    <copy todir="target/${ant.project.name}-${version}/WEB-INF/lib"> 
+      <fileset dir="lib/runtime" />
+    </copy>
+    <jar jarfile="target/${ant.project.name}-${version}.war" basedir="target/${ant.project.name}-${version}" />
+  </target>
+
+  <target name="clean" description="clean">
+    <delete dir="target" />
+  </target>
+</project>
