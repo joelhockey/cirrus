@@ -1,1 +1,4 @@
-Javascript server-side web framework using Java servlets and Rhino.  Acts a little like rails. 
+Javascript server-side web framework using Java servlets and Rhino.
+It is built on a similar approach to the jython PyServlet,
+but adds a little more functionality including javascript templates (trimpath)
+and some routing and other features similar to rails. 
