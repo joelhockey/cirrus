@@ -42,7 +42,15 @@ import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.tools.shell.Global;
 
+/**
+ * Rhino scope for CirrusServlet.  Based on {@link Global}.
+ * Each servlet thread has its own instance of this class.
+ * Provides helper methods such as load to load js libs.  Uses
+ * caching to only reload files that have modified.
+ * @author Joel Hockey
+ */
 public class CirrusScope extends ImporterTopLevel {
     private static final Log log = LogFactory.getLog(CirrusScope.class);
     public static final int RELOAD_WAIT = 3000;
@@ -50,9 +58,16 @@ public class CirrusScope extends ImporterTopLevel {
     private Map<String, CacheEntry> fileCache = new HashMap<String, CacheEntry>();
     private Map<String, CacheEntry> templateCache = new HashMap<String, CacheEntry>();
 
-    public void init(Context cx, ServletConfig sconf) {
-        this.sconf = sconf;
-        initStandardObjects(cx, false);
+    /**
+     * Create CirrusScope instance.  Adds methods {@link #load(String)},
+     * {@link #parseFile(String)}, {@link #readFile(String)}, {@link #print(Context, Scriptable, Object[], Function)},
+     * {@link #template(String)} to scope, and also add commons-logger 'log' var.
+     * 'readFile', 
+     * @param cx context
+     * @param sconf servlet config used for looking real paths from URL paths
+     */
+    public CirrusScope(Context cx, ServletConfig sconf) {
+        super(cx);
         String[] names = {
             "load",
             "parseFile",
@@ -61,8 +76,16 @@ public class CirrusScope extends ImporterTopLevel {
             "template",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
+        put("log", this, log);
     }
 
+    /**
+     * Load javascript file into this context.  File will only be loaded if it doesn't
+     * already exist, or if it has been modified since it was last loaded.
+     * @param path URL path will be converted to real path
+     * @return true if file was (re)loaded, false if no change
+     * @throws IOException if error reading file
+     */
     public boolean load(String path) throws IOException {
         String rpath = sconf.getServletContext().getRealPath(path);
         CacheEntry entry = fileCache.get(rpath);
@@ -79,6 +102,12 @@ public class CirrusScope extends ImporterTopLevel {
         return parseFile(rpath);
     }
 
+    /**
+     * Parse file and put into local cache.
+      * @param path URL path will be converted to real path
+     * @return true if file was (re)loaded, false if no change
+     * @throws IOException if error reading file
+     */
     public synchronized boolean parseFile(String path) throws IOException {
         log.info("parsing file: " + path);
         // check cache again inside synchronized method
@@ -100,6 +129,13 @@ public class CirrusScope extends ImporterTopLevel {
         }
     }
 
+    /**
+     * Return contents of file as string.  This method does not cache
+     * the results of the file.
+     * @param path URL path will be converted to real path
+     * @return string value of file using default system encoding
+     * @throws IOException if error reading file
+      */
     public String readFile(String path) throws IOException {
         log.info("readFile: " + path);
         String rpath = sconf.getServletContext().getRealPath(path);
@@ -112,6 +148,13 @@ public class CirrusScope extends ImporterTopLevel {
         return new String(baos.toByteArray());
     }
 
+    /**
+     * Print objects to sysout.  Better to use commons-logging var 'log'.
+     * @param cx javascript context
+     * @param thisObj scope - ignored
+     * @param args args to print
+     * @param funObj function - ignored
+     */
     public static void print(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
         String sep = "";
         for (int i=0; i < args.length; i++) {
@@ -122,6 +165,12 @@ public class CirrusScope extends ImporterTopLevel {
         System.out.println();
     }
 
+    /**
+     * Load {@link TrimPath http://code.google.com/p/trimpath/} template.
+     * @param path URL path will be converted to real path
+     * @return template
+     * @throws IOException if error loading template
+     */
     public Object template(String path) throws IOException {
         if (load("/WEB-INF/app/trimpath.js")) {
             templateCache.clear();
