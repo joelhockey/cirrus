@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.util.HashMap;
 import java.util.Map;
@@ -62,12 +63,13 @@ public class CirrusScope extends ImporterTopLevel {
      * Create CirrusScope instance.  Adds methods {@link #load(String)},
      * {@link #parseFile(String)}, {@link #readFile(String)}, {@link #print(Context, Scriptable, Object[], Function)},
      * {@link #template(String)} to scope, and also add commons-logger 'log' var.
-     * 'readFile', 
+     * 'readFile',
      * @param cx context
      * @param sconf servlet config used for looking real paths from URL paths
      */
     public CirrusScope(Context cx, ServletConfig sconf) {
         super(cx);
+        this.sconf = sconf;
         String[] names = {
             "load",
             "parseFile",
@@ -129,23 +131,36 @@ public class CirrusScope extends ImporterTopLevel {
         }
     }
 
-    /**
-     * Return contents of file as string.  This method does not cache
-     * the results of the file.
-     * @param path URL path will be converted to real path
-     * @return string value of file using default system encoding
-     * @throws IOException if error reading file
-      */
-    public String readFile(String path) throws IOException {
-        log.info("readFile: " + path);
-        String rpath = sconf.getServletContext().getRealPath(path);
+    public String readFile(String path, Object objOuts) throws IOException {
+        if (objOuts == null) {
+            log.info("readFile: " + path);
+            return readFile(path);
+        } else {
+            log.info("readFile(stream): " + path);
+            Context cx = Context.enter();
+            try {
+                OutputStream outs = (OutputStream) cx.jsToJava(objOuts, OutputStream.class);
+                readFileIntoStream(path, outs);
+                return null;
+            } finally {
+                cx.exit();
+            }
+        }
+    }
+
+    private String readFile(String path) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        readFileIntoStream(path, baos);
+        return new String(baos.toByteArray());
+    }
+
+    private void readFileIntoStream(String path, OutputStream outs) throws IOException {
+        String rpath = sconf.getServletContext().getRealPath(path);
         FileInputStream fis = new FileInputStream(rpath);
         byte[] buf = new byte[4096];
         for (int l = 0; (l = fis.read(buf)) != -1; ) {
-            baos.write(buf, 0, l);
+            outs.write(buf, 0, l);
         }
-        return new String(baos.toByteArray());
     }
 
     /**

@@ -22,29 +22,47 @@
  * THE SOFTWARE.
  */
 
+var publicFiles = {images: true, stylesheets: true, '': true}
+ 
 var cirrus = function(sconf, req, res) {
-    var spath = req.getAttribute("javax.servlet.include.servlet_path")
-    if (spath == null) {
-        spath = req.getServletPath()
-        if (spath == null || spath.length() == 0) {
+    var path = req.getAttribute("javax.servlet.include.servlet_path");
+    if (path == null) {
+        path = req.getServletPath()
+        if (path == null || path.length() == 0) {
         	// Servlet 2.1 puts the path of an extension-matched servlet in PathInfo.
-        	spath = req.getPathInfo()
+        	path = req.getPathInfo()
         }
     }
-    var parts = spath.split('/')
-    var controller = parts[1]
-    if (load("/WEB-INF/app/controllers/" + controller + ".js")) {
+    var controller = '' // default controller (check later for public files)
+    var view = 'index' // default view
+    var id = ''
+    var parts = path.split('/')
+    if (parts.length > 0 && parts[0] == '') { parts = parts.splice(1) } // skip first empty value
+    if (parts.length > 0 && parts[0] != '') { controller = parts[0] }
+    if (parts.length > 1 && parts[1] != '') { view = parts[1] }
+    if (parts.length > 2) { id = parts.slice(2).join('/') }
+    if (publicFiles[controller]) {
+        controller = 'pub'
+        view = null // no views for public files
+    }
+
+    print('controller: ' + controller + ', view: ' + view + ', id: ' + id + ', path: ' + path)
+    if (load('/WEB-INF/app/controllers/' + controller + '.js')) {
     	this[controller].init(sconf)
     }
     var servlet = this[controller]
+    req.setAttribute('com.joelhockey.cirrus.path', path)
+    req.setAttribute('com.joelhockey.cirrus.controller', controller)
+    req.setAttribute('com.joelhockey.cirrus.view', view)
+    req.setAttribute('com.joelhockey.cirrus.id', id)
     servlet.service(req, res)
     
-    if (parts.length > 2) {
+    if (req.getAttribute('com.joelhockey.cirrus.view') != null) {
         servlet.req = req
         servlet.res = res
-    	var tmpl = template("/WEB-INF/app/views/" + parts[2] + ".jst")
-    	tmpl.process(servlet, null, res.getWriter())
-    	delete servlet.req
-    	delete servlet.res
+        var tmpl = template('/WEB-INF/app/views/' + controller + '/' + view + '.jst')
+        tmpl.process(servlet, null, res.getWriter())
+        delete servlet.req
+        delete servlet.res
     }
 }
