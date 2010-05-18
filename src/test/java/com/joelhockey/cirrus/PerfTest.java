@@ -53,13 +53,15 @@ public class PerfTest implements Runnable {
         req.path = path;
         MockHttpServletResponse res = new MockHttpServletResponse();
         new PerfTest(1, servlet, req, res).run();
-        System.out.println(test + " out: " + new String(res.baos.toByteArray()));
+        String lastMod = res.headers.get("Last-Modified");
+        System.out.println("lastMod: " + lastMod);
+        if (lastMod != null) { req.headers.put("If-Modified-Since", lastMod); }
+        System.out.println(test + " : " + res.status + " : " + new String(res.baos.toByteArray()));
+        System.out.println("headers: " + res.headers);
 
         // create threads
         PerfTest[] testThreads = new PerfTest[threads];
         for (int i = 0; i < testThreads.length; i++) {
-            req = new MockHttpServletRequest();
-            req.path = path;
             res = new MockHttpServletResponse();
             testThreads[i] = new PerfTest(its, servlet, req, res);
         }
@@ -87,12 +89,13 @@ public class PerfTest implements Runnable {
     }
 
     public static void main(String[] args) throws Exception {
-        int ITS = 1;
+        int ITS = 10000;
         HttpServlet javaServlet = new JavaServlet();
 //        test(ITS, 1, "java", javaServlet, "");
 //        test(ITS, 2, "java", javaServlet, "");
 
         HttpServlet jsServlet = new CirrusServlet();
+        test(ITS, 1, "js", jsServlet, "/");
         test(ITS, 1, "js", jsServlet, "/test/hello");
 //        test(ITS, 2, "js", jsServlet, "/test/hello");
 

@@ -37,10 +37,12 @@ import org.mozilla.javascript.Function;
  * Servlet based on jython's PyServlet.  Creates separate instance of
  * {@link CirrusScope} for each thread and forwards all requests to
  * WEB-INF/app/cirrus.js.
- * 
+ *
  * @author Joel Hockey
  */
 public class CirrusServlet extends HttpServlet {
+    private static final String CIRRUS = "cirrus";
+    private static final String CIRRUS_FILE = "/WEB-INF/app/cirrus.js";
     private CirrusScope scope;
     private Function cirrus;
 
@@ -63,8 +65,8 @@ public class CirrusServlet extends HttpServlet {
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
         try {
-            if (scope.load("/WEB-INF/app/cirrus.js")) {
-                cirrus = (Function) scope.get("cirrus", scope);
+            if (scope.load(CIRRUS_FILE)) {
+                cirrus = (Function) scope.get(CIRRUS, scope);
             }
             Context cx = Context.enter();
             try {

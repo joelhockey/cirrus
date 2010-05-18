@@ -46,7 +46,7 @@ var cirrus = function(sconf, req, res) {
         view = null // no views for public files
     }
 
-    print('controller: ' + controller + ', view: ' + view + ', id: ' + id + ', path: ' + path)
+//    print('controller: ' + controller + ', view: ' + view + ', id: ' + id + ', path: ' + path)
     if (load('/WEB-INF/app/controllers/' + controller + '.js')) {
     	this[controller].init(sconf)
     }

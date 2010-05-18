@@ -4,10 +4,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.Principal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletInputStream;
@@ -22,12 +25,24 @@ public class MockHttpServletRequest implements HttpServletRequest {
     }};
     public Map<String, Object> attribs = new HashMap<String, Object>();
     public String method = "GET";
-
+    public Map<String, String> headers = new HashMap<String, String>();
     public String path;
+    private SimpleDateFormat dateHeaderFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'");
+    {
+    	dateHeaderFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+
     public String getAuthType() { throw new UnsupportedOperationException(); }
     public String getContextPath() { throw new UnsupportedOperationException(); }
     public Cookie[] getCookies() { throw new UnsupportedOperationException(); }
-    public long getDateHeader(String arg0) { throw new UnsupportedOperationException(); }
+    public long getDateHeader(String header) {
+    	String value = headers.get(header);
+    	try {
+    		return value != null ? dateHeaderFormat.parse(value).getTime() : -1;
+		} catch (ParseException pe) {
+			return -1;
+		}
+    }
     public String getHeader(String arg0) { throw new UnsupportedOperationException(); }
     public Enumeration getHeaderNames() { throw new UnsupportedOperationException(); }
     public Enumeration getHeaders(String arg0) { throw new UnsupportedOperationException(); }

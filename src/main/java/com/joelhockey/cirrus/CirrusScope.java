@@ -53,11 +53,16 @@ import org.mozilla.javascript.tools.shell.Global;
  * @author Joel Hockey
  */
 public class CirrusScope extends ImporterTopLevel {
-    private static final Log log = LogFactory.getLog(CirrusScope.class);
-    public static final int RELOAD_WAIT = 3000;
+    private static final String TRIMPATH_PARSETEMPLATE = "parseTemplate";
+    private static final String TRIMPATH_VARNAME = "TrimPath";
+    private static final String TRIMPATH_JS = "/WEB-INF/app/trimpath.js";
+	private static final Log log = LogFactory.getLog(CirrusScope.class);
+	private static final Log jsLog = LogFactory.getLog("com.joelhockey.cirrus.js");
+    public static final long RELOAD_WAIT = 3000;
     private ServletConfig sconf;
     private Map<String, CacheEntry> fileCache = new HashMap<String, CacheEntry>();
     private Map<String, CacheEntry> templateCache = new HashMap<String, CacheEntry>();
+    private Map<String, CacheEntry> lastModCache = new HashMap<String, CacheEntry>();
 
     /**
      * Create CirrusScope instance.  Adds methods {@link #load(String)},
@@ -71,6 +76,7 @@ public class CirrusScope extends ImporterTopLevel {
         super(cx);
         this.sconf = sconf;
         String[] names = {
+            "lastModified",
             "load",
             "parseFile",
             "print",
@@ -78,7 +84,32 @@ public class CirrusScope extends ImporterTopLevel {
             "template",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
-        put("log", this, log);
+        put("log", this, jsLog);
+    }
+
+    /**
+     * Return last modified date of given file.  Caches results and stores for
+     * {@link #RELOAD_WAIT} before checking again.  Adds item to cache if
+     * not already exists.
+     * @param path filename
+     * @return last modified date or -1 if file not exists.
+     */
+    public long lastModified(String path) {
+        String rpath = sconf.getServletContext().getRealPath(path);
+        CacheEntry entry = lastModCache.get(rpath);
+        long now = System.currentTimeMillis();
+        if (entry != null && entry.lastChecked + RELOAD_WAIT > now) {
+            return entry.lastModified;
+        }
+        File f = new File(rpath);
+        long lastMod = f.exists() ? f.lastModified() : -1;
+        if (entry == null) {
+            entry = new CacheEntry(rpath, lastMod, now, null);
+            lastModCache.put(rpath, entry);
+        } else {
+            entry.lastChecked = now;
+        }
+        return entry.lastModified;
     }
 
     /**
@@ -93,14 +124,13 @@ public class CirrusScope extends ImporterTopLevel {
         CacheEntry entry = fileCache.get(rpath);
         long now = System.currentTimeMillis();
         if (entry != null) {
-            if (entry.lastcheck + RELOAD_WAIT > now) {
+            if (entry.lastChecked + RELOAD_WAIT > now) {
                 return false;
-            } else if (new File(rpath).lastModified() == entry.filedate) {
-                entry.lastcheck = now;
+            } else if (new File(rpath).lastModified() == entry.lastModified) {
+                entry.lastChecked = now;
                 return false;
             }
         }
-
         return parseFile(rpath);
     }
 
@@ -114,7 +144,7 @@ public class CirrusScope extends ImporterTopLevel {
         log.info("parsing file: " + path);
         // check cache again inside synchronized method
         CacheEntry entry = fileCache.get(path);
-        if (entry != null && new File(path).lastModified() == entry.filedate) {
+        if (entry != null && new File(path).lastModified() == entry.lastModified) {
             log.debug("file already parsed: " + path);
             return false;
         }
@@ -124,7 +154,7 @@ public class CirrusScope extends ImporterTopLevel {
         try {
             Object obj = cx.evaluateReader(this, reader, path, 1, null);
             reader.close();
-            fileCache.put(path, new CacheEntry(obj, file.lastModified(), System.currentTimeMillis()));
+            fileCache.put(path, new CacheEntry(path, file.lastModified(), System.currentTimeMillis(), obj));
             return true;
         } finally {
             Context.exit();
@@ -171,13 +201,14 @@ public class CirrusScope extends ImporterTopLevel {
      * @param funObj function - ignored
      */
     public static void print(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        StringBuilder sb = new StringBuilder();
         String sep = "";
         for (int i=0; i < args.length; i++) {
-            System.out.print(sep);
+            sb.append(sep);
             sep = " ";
-            System.out.print(Context.toString(args[i]));
+            sb.append(Context.toString(args[i]));
         }
-        System.out.println();
+        log.info(sb);
     }
 
     /**
@@ -187,27 +218,27 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if error loading template
      */
     public Object template(String path) throws IOException {
-        if (load("/WEB-INF/app/trimpath.js")) {
+        if (load(TRIMPATH_JS)) {
             templateCache.clear();
-            fileCache.clear(); // modifiers from trimpath get stored within servlets
+            // modifiers from trimpath also get stored within servlets
         }
         String rpath = sconf.getServletContext().getRealPath(path);
         CacheEntry entry = templateCache.get(rpath);
         long now = System.currentTimeMillis();
         if (entry != null) {
-            if (entry.lastcheck + RELOAD_WAIT > now) {
+            if (entry.lastChecked + RELOAD_WAIT > now) {
                 return entry.object;
-            } else if (new File(rpath).lastModified() == entry.filedate) {
-                entry.lastcheck = now;
+            } else if (new File(rpath).lastModified() == entry.lastModified) {
+                entry.lastChecked = now;
                 return entry.object;
             }
         }
-        ScriptableObject tp = (ScriptableObject) get("TrimPath", this);
-        Function parseTemplate = (Function) tp.get("parseTemplate", tp);
+        ScriptableObject tp = (ScriptableObject) get(TRIMPATH_VARNAME, this);
+        Function parseTemplate = (Function) tp.get(TRIMPATH_PARSETEMPLATE, tp);
         Context cx = Context.enter();
         try {
             Object template = parseTemplate.call(cx, this, this, new Object[] {readFile(path), rpath});
-            entry = new CacheEntry(template, new File(rpath).lastModified(), now);
+            entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
             templateCache.put(rpath, entry);
         } finally {
             Context.exit();
@@ -216,14 +247,16 @@ public class CirrusScope extends ImporterTopLevel {
     }
 
     private static class CacheEntry {
+        public String filename;
+        public long lastModified;
+        public long lastChecked;
         public Object object;
-        public long filedate;
-        public long lastcheck;
 
-        CacheEntry(Object object, long date, long lastcheck) {
+        CacheEntry(String filename, long date, long lastcheck, Object object) {
+            this.filename = filename;
+            this.lastModified = date;
+            this.lastChecked = lastcheck;
             this.object = object;
-            this.filedate = date;
-            this.lastcheck = lastcheck;
         }
     }
 }

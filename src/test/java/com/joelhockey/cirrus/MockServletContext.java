@@ -31,7 +31,6 @@ public class MockServletContext implements ServletContext {
         if (path.charAt(0) != '/') {
             path = "/" + path;
         }
-System.out.println("looking up: " + path);
         URL url = MockServletContext.class.getResource(path);
         if (url == null) {
             throw new NullPointerException("could not find real (or any) path for: [" + path + "]");
