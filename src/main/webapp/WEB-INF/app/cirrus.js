@@ -21,9 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+var publicFiles = null // gets set by CirrusServlet as HashSet
 
-var publicFiles = {images: true, stylesheets: true, '': true}
- 
 var cirrus = function(sconf, req, res) {
     var path = req.getAttribute("javax.servlet.include.servlet_path");
     if (path == null) {
@@ -41,7 +40,7 @@ var cirrus = function(sconf, req, res) {
     if (parts.length > 0 && parts[0] != '') { controller = parts[0] }
     if (parts.length > 1 && parts[1] != '') { view = parts[1] }
     if (parts.length > 2) { id = parts.slice(2).join('/') }
-    if (publicFiles[controller]) {
+    if (publicFiles.contains(controller)) { // publicFiles is HashSet
         controller = 'pub'
         view = null // no views for public files
     }

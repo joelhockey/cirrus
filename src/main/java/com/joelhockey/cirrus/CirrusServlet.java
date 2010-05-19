@@ -23,7 +23,10 @@
  */
 package com.joelhockey.cirrus;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -42,32 +45,31 @@ import org.mozilla.javascript.Function;
  */
 public class CirrusServlet extends HttpServlet {
     private static final String CIRRUS = "cirrus";
+    private static final String PUBLIC_FILES_VAR = "publicFiles";
+    private static final String PUBLIC_DIR = "/WEB-INF/public";
     private static final String CIRRUS_FILE = "/WEB-INF/app/cirrus.js";
     private CirrusScope scope;
     private Function cirrus;
 
-    /**
-     * Create new {@link CirrusScope} for each thread and initialise.
-     */
+    /** Create new {@link CirrusScope} for each thread and initialise. */
     @Override
     public void init() throws ServletException {
         Context cx = Context.enter();
         try {
             scope = new CirrusScope(cx, getServletConfig());
+            loadCirrus();
+        } catch (IOException ioe) {
+            throw new ServletException(ioe);
         } finally {
             cx.exit();
         }
     }
 
-    /**
-     * Forward requests to WEB-INF/app/cirrus.js.
-     */
+    /** Forward requests to WEB-INF/app/cirrus.js. */
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
         try {
-            if (scope.load(CIRRUS_FILE)) {
-                cirrus = (Function) scope.get(CIRRUS, scope);
-            }
+            loadCirrus();
             Context cx = Context.enter();
             try {
                 cirrus.call(cx, scope, scope, new Object[] {getServletConfig(), req, res});
@@ -76,6 +78,21 @@ public class CirrusServlet extends HttpServlet {
             }
         } catch (Exception e) {
             throw new ServletException("Could not load cirrus", e);
+        }
+    }
+
+    /** load /WEB-INF/app/cirrus.js. */
+    private void loadCirrus() throws IOException {
+        if (scope.load(CIRRUS_FILE)) {
+            cirrus = (Function) scope.get(CIRRUS, scope);
+            Set<String> publicFiles = new HashSet<String>();
+            publicFiles.add(""); // root 'GET /'
+            for (File dir : new File(getServletContext().getRealPath(PUBLIC_DIR)).listFiles()) {
+                if (dir.isDirectory()) {
+                    publicFiles.add(dir.getName());
+                }
+            }
+            scope.put(PUBLIC_FILES_VAR, scope, publicFiles);
         }
     }
 }

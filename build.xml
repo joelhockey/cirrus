@@ -16,6 +16,25 @@
     </javac>
   </target>
 
+  <scriptdef name="rhinounit" src="src/test/rhinounit/rhinoUnitAnt.js" language="javascript">
+    <attribute name="options"/>
+    <attribute name="ignoredglobalvars"/>
+    <attribute name="haltOnFirstFailure"/>
+    <attribute name="rhinoUnitUtilPath"/>
+    <element name="fileset" type="fileset"/>
+    <classpath>
+      <pathelement location="target/test-classes"/>
+      <pathelement location="target/classes"/>
+      <fileset dir="lib" />
+    </classpath>
+  </scriptdef>
+
+  <target name="test" depends="compile" description="test" >
+    <rhinounit options="{verbose:true, stackTrace:true}" haltOnFirstFailure="true" rhinoUnitUtilPath="src/test/rhinounit/rhinoUnitUtil.js">
+      <fileset dir="src/test/javascript" />
+    </rhinounit>
+  </target>
+  
   <target name="war" depends="compile" description="war">
     <copy todir="target/${ant.project.name}-${version}">
       <fileset dir="src/main/webapp" />

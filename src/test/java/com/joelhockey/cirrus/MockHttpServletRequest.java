@@ -32,6 +32,9 @@ public class MockHttpServletRequest implements HttpServletRequest {
     	dateHeaderFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
     }
 
+    public MockHttpServletRequest(String path) {
+        this.path = path;
+    }
     public String getAuthType() { throw new UnsupportedOperationException(); }
     public String getContextPath() { throw new UnsupportedOperationException(); }
     public Cookie[] getCookies() { throw new UnsupportedOperationException(); }

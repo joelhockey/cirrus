@@ -49,8 +49,7 @@ public class PerfTest implements Runnable {
         long startmem = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())/1024;
 
         // kick off one for init
-        MockHttpServletRequest req = new MockHttpServletRequest();
-        req.path = path;
+        MockHttpServletRequest req = new MockHttpServletRequest(path);
         MockHttpServletResponse res = new MockHttpServletResponse();
         new PerfTest(1, servlet, req, res).run();
         String lastMod = res.headers.get("Last-Modified");
