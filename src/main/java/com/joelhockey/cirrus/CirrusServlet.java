@@ -86,7 +86,6 @@ public class CirrusServlet extends HttpServlet {
         if (scope.load(CIRRUS_FILE)) {
             cirrus = (Function) scope.get(CIRRUS, scope);
             Set<String> publicFiles = new HashSet<String>();
-            publicFiles.add(""); // root 'GET /'
             for (File dir : new File(getServletContext().getRealPath(PUBLIC_DIR)).listFiles()) {
                 if (dir.isDirectory()) {
                     publicFiles.add(dir.getName());

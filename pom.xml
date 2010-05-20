@@ -38,7 +38,7 @@
       <version>1.7R2</version>
     </dependency>
 
-    <!-- provided -->    
+    <!-- provided -->
     <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>

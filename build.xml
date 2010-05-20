@@ -4,6 +4,7 @@
 
   <target name="init">
     <mkdir dir="target/classes" />
+    <mkdir dir="target/test-classes" />
     <mkdir dir="target/${ant.project.name}-${version}" />
   </target>
 
@@ -30,6 +31,18 @@
   </scriptdef>
 
   <target name="test" depends="compile" description="test" >
+    <javac srcdir="src/test/java" destdir="target/test-classes"
+        debug="on" source="1.5" target="1.5" includeAntRuntime="false">
+      <classpath>
+        <pathelement location="target/classes"/>
+        <fileset dir="lib" />
+      </classpath>
+    </javac>
+    <copy todir="target/test-classes">
+      <fileset dir="src/main/webapp"/>
+      <fileset dir="src/test/resources"/>
+      <fileset dir="src/test/webapp"/>
+    </copy>
     <rhinounit options="{verbose:true, stackTrace:true}" haltOnFirstFailure="true" rhinoUnitUtilPath="src/test/rhinounit/rhinoUnitUtil.js">
       <fileset dir="src/test/javascript" />
     </rhinounit>

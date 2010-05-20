@@ -32,28 +32,25 @@ var cirrus = function(sconf, req, res) {
         	path = req.getPathInfo()
         }
     }
-    var controller = '' // default controller (check later for public files)
-    var view = 'index' // default view
-    var id = ''
+    var controller = 'pub' // default controller (check later for public files)
+    var action = 'index' // default action
     var parts = path.split('/')
     if (parts.length > 0 && parts[0] == '') { parts = parts.splice(1) } // skip first empty value
     if (parts.length > 0 && parts[0] != '') { controller = parts[0] }
     if (parts.length > 1 && parts[1] != '') { view = parts[1] }
-    if (parts.length > 2) { id = parts.slice(2).join('/') }
     if (publicFiles.contains(controller)) { // publicFiles is HashSet
         controller = 'pub'
-        view = null // no views for public files
     }
 
-//    print('controller: ' + controller + ', view: ' + view + ', id: ' + id + ', path: ' + path)
+//    print('controller: ' + controller + ', action: ' + action + ', path: ' + path)
     if (load('/WEB-INF/app/controllers/' + controller + '.js')) {
     	this[controller].init(sconf)
     }
     var servlet = this[controller]
     req.setAttribute('com.joelhockey.cirrus.path', path)
+    req.setAttribute('com.joelhockey.cirrus.path_parts', parts)
     req.setAttribute('com.joelhockey.cirrus.controller', controller)
-    req.setAttribute('com.joelhockey.cirrus.view', view)
-    req.setAttribute('com.joelhockey.cirrus.id', id)
+    req.setAttribute('com.joelhockey.cirrus.action', action)
     servlet.service(req, res)
     
     if (req.getAttribute('com.joelhockey.cirrus.view') != null) {
