@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.Vector;
 
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletInputStream;
@@ -80,7 +81,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
     public Enumeration getLocales() { throw new UnsupportedOperationException(); }
     public String getParameter(String key) { return params.get(key); }
     public Map getParameterMap() { return params; }
-    public Enumeration getParameterNames() { throw new UnsupportedOperationException(); }
+    public Enumeration getParameterNames() { return new Vector(params.keySet()).elements(); }
     public String[] getParameterValues(String arg0) { throw new UnsupportedOperationException(); }
     public String getProtocol() { throw new UnsupportedOperationException(); }
     public BufferedReader getReader() throws IOException { throw new UnsupportedOperationException(); }

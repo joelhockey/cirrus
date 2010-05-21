@@ -68,7 +68,6 @@ public class CirrusScope extends ImporterTopLevel {
      * Create CirrusScope instance.  Adds methods {@link #load(String)},
      * {@link #parseFile(String)}, {@link #readFile(String)}, {@link #print(Context, Scriptable, Object[], Function)},
      * {@link #template(String)} to scope, and also add commons-logger 'log' var.
-     * 'readFile',
      * @param cx context
      * @param sconf servlet config used for looking real paths from URL paths
      */
@@ -84,7 +83,7 @@ public class CirrusScope extends ImporterTopLevel {
             "template",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
-        put("log", this, jsLog);
+        put("log", this, Context.javaToJS(jsLog, this));
     }
 
     /**
@@ -140,7 +139,7 @@ public class CirrusScope extends ImporterTopLevel {
      * @return true if file was (re)loaded, false if no change
      * @throws IOException if error reading file
      */
-    public synchronized boolean parseFile(String path) throws IOException {
+    public boolean parseFile(String path) throws IOException {
         log.info("parsing file: " + path);
         // check cache again inside synchronized method
         CacheEntry entry = fileCache.get(path);
