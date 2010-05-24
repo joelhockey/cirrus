@@ -1,9 +1,8 @@
 codec = com.joelhockey.codec
-//load('src/dynweb/lib.js')
 
-var test = javax.servlet.http.HttpServlet({
+var test = new javax.servlet.http.HttpServlet({
     doGet: function(req, res) {
-        this.a = [x * 2 for each (x in [0, 1, 2])]
-        this.b64 = codec.B64.b2s(codec.Hex.s2b(req.getParameter('hex')))
+        this.a = [x * 2 for each (x in [0, 1, 2])];
+        this.b64 = codec.B64.b2s(codec.Hex.s2b(req.getParameter("hex")));
     },
 })

@@ -23,24 +23,24 @@
  */
 
 var pub = new javax.servlet.http.HttpServlet({
-    getLastModified: function(req) { return lastModified(this.getPublicPath(req)) },
+    getLastModified: function(req) { return lastModified(this.getPublicPath(req)); },
   
     doGet: function(req, res) {
-        readFile(this.getPublicPath(req), res.getOutputStream())
+        readFile(this.getPublicPath(req), res.getOutputStream());
     },
     
     getPublicPath: function(req) {
-        var publicPath = req.getAttribute('com.joelhockey.cirrus.public_path')
-        if (publicPath) { return publicPath }
-        var dirs = pathdirs
+        var publicPath = req.getAttribute("com.joelhockey.cirrus.public_path");
+        if (publicPath) { return publicPath; }
+        var dirs = pathdirs;
         if (dirs.length == 0) {
-        	dirs = ['index.html']
+        	dirs = ['index.html'];
         }
-        if (dirs[dirs.length - 1].indexOf('.') == -1) {
-        	dirs[dirs.length -1] += '.html'
+        if (dirs[dirs.length - 1].indexOf(".") == -1) {
+        	dirs[dirs.length -1] += ".html";
         }
-        var publicPath = '/WEB-INF/public/' + dirs.join('/')
-        req.setAttribute('com.joelhockey.cirrus.public_path', publicPath)
-        return publicPath
+        var publicPath = "/WEB-INF/public/" + dirs.join("/");
+        req.setAttribute("com.joelhockey.cirrus.public_path", publicPath);
+        return publicPath;
     }
 })

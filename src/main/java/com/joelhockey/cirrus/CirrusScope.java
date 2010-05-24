@@ -41,6 +41,7 @@ import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
+import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.tools.shell.Global;
@@ -83,7 +84,7 @@ public class CirrusScope extends ImporterTopLevel {
             "template",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
-        put("log", this, Context.javaToJS(jsLog, this));
+        put("log", this, new NativeJavaObject(this, jsLog, null));
     }
 
     /**
@@ -212,7 +213,7 @@ public class CirrusScope extends ImporterTopLevel {
 
     /**
      * Load {@link TrimPath http://code.google.com/p/trimpath/} template.
-     * @param path URL path will be converted to real path
+     * @param path path of template starting with '/WEB-INF/app/view/'
      * @return template
      * @throws IOException if error loading template
      */
@@ -236,6 +237,7 @@ public class CirrusScope extends ImporterTopLevel {
         Function parseTemplate = (Function) tp.get(TRIMPATH_PARSETEMPLATE, tp);
         Context cx = Context.enter();
         try {
+            log.info("loading template: " + path);
             Object template = parseTemplate.call(cx, this, this, new Object[] {readFile(path), rpath});
             entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
             templateCache.put(rpath, entry);

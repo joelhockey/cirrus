@@ -25,6 +25,10 @@ public class MockHttpServletResponse implements HttpServletResponse {
     	dateHeaderFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
     }
     private String contentType;
+    public String getResponse() {
+        pw.flush();
+        return new String(baos.toByteArray());
+    }
 
     public void addCookie(Cookie arg0) { throw new UnsupportedOperationException(); }
     public void addDateHeader(String header, long value) { headers.put(header, dateHeaderFormat.format(new Date(value))); }
