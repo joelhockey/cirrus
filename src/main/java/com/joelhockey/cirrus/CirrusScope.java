@@ -30,21 +30,30 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.io.Reader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.servlet.ServletConfig;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
+import org.mozilla.javascript.NativeJavaArray;
 import org.mozilla.javascript.NativeJavaObject;
+import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.tools.shell.Global;
+
+import com.joelhockey.codec.B64;
+import com.joelhockey.codec.Hex;
 
 /**
  * Rhino scope for CirrusServlet.  Based on {@link Global}.
@@ -54,9 +63,6 @@ import org.mozilla.javascript.tools.shell.Global;
  * @author Joel Hockey
  */
 public class CirrusScope extends ImporterTopLevel {
-    private static final String TRIMPATH_PARSETEMPLATE = "parseTemplate";
-    private static final String TRIMPATH_VARNAME = "TrimPath";
-    private static final String TRIMPATH_JS = "/WEB-INF/app/trimpath.js";
 	private static final Log log = LogFactory.getLog(CirrusScope.class);
 	private static final Log jsLog = LogFactory.getLog("com.joelhockey.cirrus.js");
     public static final long RELOAD_WAIT = 3000;
@@ -76,16 +82,25 @@ public class CirrusScope extends ImporterTopLevel {
         super(cx);
         this.sconf = sconf;
         String[] names = {
-            "lastModified",
+            "b64_s2b",
+            "b64_b2s",
+            "fileLastModified",
+            "hex_s2b",
+            "hex_b2s",
+            "jst",
             "load",
             "parseFile",
             "print",
             "readFile",
-            "template",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
         put("log", this, new NativeJavaObject(this, jsLog, null));
     }
+
+    public byte[] b64_s2b(String s) { return B64.s2b(s); }
+    public String b64_b2s(NativeJavaArray buf) { return B64.b2s((byte[]) buf.unwrap()); }
+    public byte[] hex_s2b(String s) { return Hex.s2b(s); }
+    public String hex_b2s(NativeJavaArray buf) { return Hex.b2s((byte[]) buf.unwrap()); }
 
     /**
      * Return last modified date of given file.  Caches results and stores for
@@ -94,7 +109,7 @@ public class CirrusScope extends ImporterTopLevel {
      * @param path filename
      * @return last modified date or -1 if file not exists.
      */
-    public long lastModified(String path) {
+    public long fileLastModified(String path) {
         String rpath = sconf.getServletContext().getRealPath(path);
         CacheEntry entry = lastModCache.get(rpath);
         long now = System.currentTimeMillis();
@@ -186,6 +201,9 @@ public class CirrusScope extends ImporterTopLevel {
 
     private void readFileIntoStream(String path, OutputStream outs) throws IOException {
         String rpath = sconf.getServletContext().getRealPath(path);
+        if (rpath == null) {
+            throw new IOException("No path for file: " + path);
+        }
         FileInputStream fis = new FileInputStream(rpath);
         byte[] buf = new byte[4096];
         for (int l = 0; (l = fis.read(buf)) != -1; ) {
@@ -211,40 +229,79 @@ public class CirrusScope extends ImporterTopLevel {
         log.info(sb);
     }
 
+    private NativeObject loadjst(String name) throws IOException {
+        String path = "/WEB-INF/app/views/" + name.replace(".", "/") + ".jst";
+        log.info("loadjst: " + path);
+        String jstFile = readFile(path);
+        // if prototype declared, then load it first
+        Pattern p = Pattern.compile("^\\s*\\{[ \\t]*prototype[ \\t]+([^\\s{}]+)[ \\t]*}");
+        Matcher m = p.matcher(jstFile);
+        if (m.find()) {
+            loadjst(m.group(1));
+        }
+        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
+        Function parse = (Function) jstObj.get("parse", jstObj);
+        Context cx = Context.enter();
+        try {
+            log.info("JST.parse(" + name + ".jst)");
+            String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
+            log.debug("compiled template " + name + ".jst:\n" + source);
+            cx.evaluateString(this, source, "views/" + name + ".js", 1, null);
+            ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
+            Function f = (Function) templates.get(name, templates);
+            return (NativeObject) f.construct(cx, this, null);
+        } finally {
+            Context.exit();
+        }
+    }
+
     /**
-     * Load {@link TrimPath http://code.google.com/p/trimpath/} template.
-     * @param path path of template starting with '/WEB-INF/app/view/'
-     * @return template
+     * Uses 'controller' and 'view' variables already in scope to lookup template
+     * unless specific path is provided.
+     * @param path optional path to override controller and view
      * @throws IOException if error loading template
      */
-    public Object template(String path) throws IOException {
-        if (load(TRIMPATH_JS)) {
+    public void jst(Object context) throws IOException {
+        // reload 'jst.js' if changed
+        if (load("/WEB-INF/app/jst.js")) {
             templateCache.clear();
-            // modifiers from trimpath also get stored within servlets
         }
+        // controller and view used to look up view
+        String controller = (String) get("controller", this);
+        String action = (String) get("action", this);
+        HttpServletResponse res = (HttpServletResponse) ((NativeJavaObject) get("res", this)).unwrap();
+        String path = "/WEB-INF/app/views/" + controller + "/" + action + ".jst";
+
+        // get template from cache
         String rpath = sconf.getServletContext().getRealPath(path);
+        if (rpath == null) {
+            throw new IOException("Could not load jst template for controller: [" + controller + "], view: ["
+                    + action + "] at path: [" + path + "]");
+        }
+        NativeObject template = null;
         CacheEntry entry = templateCache.get(rpath);
         long now = System.currentTimeMillis();
         if (entry != null) {
             if (entry.lastChecked + RELOAD_WAIT > now) {
-                return entry.object;
+                template = (NativeObject) entry.object;
             } else if (new File(rpath).lastModified() == entry.lastModified) {
                 entry.lastChecked = now;
-                return entry.object;
+                template = (NativeObject) entry.object;
             }
         }
-        ScriptableObject tp = (ScriptableObject) get(TRIMPATH_VARNAME, this);
-        Function parseTemplate = (Function) tp.get(TRIMPATH_PARSETEMPLATE, tp);
         Context cx = Context.enter();
         try {
-            log.info("loading template: " + path);
-            Object template = parseTemplate.call(cx, this, this, new Object[] {readFile(path), rpath});
-            entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
-            templateCache.put(rpath, entry);
+            // load template now if not already loaded
+            if (template == null) {
+                template = loadjst(controller + "." + action);
+                entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
+                templateCache.put(rpath, entry);
+            }
+            ScriptableObject.callMethod(cx, template, "render",
+                    new Object[] {new NativeJavaObject(this, res.getWriter(), PrintWriter.class), context});
         } finally {
             Context.exit();
         }
-        return entry.object;
     }
 
     private static class CacheEntry {

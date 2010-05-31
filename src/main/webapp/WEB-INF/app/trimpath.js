@@ -63,7 +63,7 @@ var TrimPath;
             return new optEtc.Template(optTmplName, tmplContent, funcSrc, func, optEtc);
         return null;
     }
-    
+
     try {
         String.prototype.process = function(context, optFlags) {
             var template = TrimPath.parseTemplate(this, null);
@@ -321,7 +321,7 @@ var TrimPath;
             emitText(line.substring(endExprPrev + endMarkPrev.length, begExpr), funcText);                
             // Example: exprs == 'firstName|default:"John Doe"|capitalize'.split('|')
             var exprArr = line.substring(begExpr + begMark.length, endExpr).replace(/\|\|/g, "#@@#").split('|');
-            exprArr.splice(1, 0, 'nonull:"' + exprArr[0].replace(/"/g,  '\\"') + '"');
+//            exprArr.splice(1, 0, 'nonull:"' + exprArr[0].replace(/"/g,  '\\"') + '"');
             for (var k in exprArr) {
                 if (exprArr[k].replace) // IE 5.x fix from Igor Poteryaev.
                     exprArr[k] = exprArr[k].replace(/#@@#/g, '||');

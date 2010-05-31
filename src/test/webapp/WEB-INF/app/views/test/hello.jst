@@ -1,1 +1,10 @@
-Hello ${params.param}, a is ${a.toString()}
+{prototype test.layout}
+{function title}hello page{/function title}
+{function body}
+  Hello a is ${a.toString()}
+  {for p in params}
+    ${p} : ${params[p]}
+  {forelse}
+    no params
+  {/for}
+{/function body}

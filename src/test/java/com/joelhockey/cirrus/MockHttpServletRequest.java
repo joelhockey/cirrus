@@ -34,6 +34,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
     }
 
     public MockHttpServletRequest(String path) {
+        attribs.put("javax.servlet.include.servlet_path", path);
         this.path = path;
     }
     public String getAuthType() { throw new UnsupportedOperationException(); }

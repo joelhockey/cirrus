@@ -31,15 +31,17 @@ public class MockServletContext implements ServletContext {
         if (path.charAt(0) != '/') {
             path = "/" + path;
         }
-        URL url = MockServletContext.class.getResource(path);
-        if (url == null) {
-            throw new NullPointerException("could not find real (or any) path for: [" + path + "]");
-        }
-        try {
-            return new File(url.toURI()).getAbsolutePath();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+
+        return "target/test-classes" + path;
+//        URL url = MockServletContext.class.getResource(path);
+//        if (url == null) {
+//            throw new NullPointerException("could not find real (or any) path for: [" + path + "]");
+//        }
+//        try {
+//            return new File(url.toURI()).getAbsolutePath();
+//        } catch (URISyntaxException e) {
+//            throw new RuntimeException(e);
+//        }
     }
     public RequestDispatcher getRequestDispatcher(String arg0) { throw new UnsupportedOperationException(); }
     public URL getResource(String arg0) throws MalformedURLException { throw new UnsupportedOperationException(); }

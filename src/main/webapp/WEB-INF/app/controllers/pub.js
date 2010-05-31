@@ -22,20 +22,29 @@
  * THE SOFTWARE.
  */
 
-var pub = new javax.servlet.http.HttpServlet({
-    getLastModified: function(req) { return lastModified(this.getPublicPath(req)); },
-  
-    doGet: function(req, res) {
-        readFile(this.getPublicPath(req), res.getOutputStream());
+var pub = {
+    getLastModified: function(req) {
+	    return fileLastModified(this.getPublicPath(req));
+	},
+
+	get: function(req, res) {
+		try {
+			readFile(this.getPublicPath(req), res.getOutputStream());
+		} catch (e) {
+			// file not found
+			res.setStatus(404);
+		}
     },
     
     getPublicPath: function(req) {
         var publicPath = req.getAttribute("com.joelhockey.cirrus.public_path");
         if (publicPath) { return publicPath; }
         var dirs = pathdirs;
-        if (dirs.length == 0) {
-        	dirs = ['index.html'];
+        // default file for '/' is 'index.html'
+        if (!dirs[0]) {
+        	dirs = ["index.html"];
         }
+        // add '.html' suffix if no file type given
         if (dirs[dirs.length - 1].indexOf(".") == -1) {
         	dirs[dirs.length -1] += ".html";
         }
@@ -43,4 +52,4 @@ var pub = new javax.servlet.http.HttpServlet({
         req.setAttribute("com.joelhockey.cirrus.public_path", publicPath);
         return publicPath;
     }
-})
+}

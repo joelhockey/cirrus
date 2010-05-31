@@ -9,21 +9,31 @@ public class CirrusTest extends TestCase {
     private MockServletConfig sconf;
 
     public void setUp() throws Exception {
-        req = new MockHttpServletRequest("/");
-        res = new MockHttpServletResponse();
         sconf = new MockServletConfig();
         servlet = new CirrusServlet();
         servlet.init(sconf);
     }
 
     public void testIndex() throws Exception {
-        req.path = "/";
+        req = new MockHttpServletRequest("/");
+        res = new MockHttpServletResponse();
         servlet.service(req, res);
+        assertEquals(200, res.status);
+
+        req = new MockHttpServletRequest("/");
+        req.headers.put("If-Modified-Since", res.headers.get("Last-Modified"));
+        res = new MockHttpServletResponse();
+        servlet.service(req, res);
+        assertEquals(304, res.status);
     }
 
     public void testTestHello() throws Exception {
-        req.path = "/test/hello";
+        req = new MockHttpServletRequest("/test/hello");
+        res = new MockHttpServletResponse();
         servlet.service(req, res);
+        String response = res.getResponse();
+        assertTrue("Expected res: 'Hello...', got: [" + response + "]", response.startsWith("Hello"));
+
 //        System.out.println(res.getResponse());
     }
 }

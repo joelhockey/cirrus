@@ -88,18 +88,21 @@ public class PerfTest implements Runnable {
     }
 
     public static void main(String[] args) throws Exception {
-        int ITS = 10000;
+        int ITS = 300000;
         HttpServlet javaServlet = new JavaServlet();
 //        test(ITS, 1, "java", javaServlet, "");
 //        test(ITS, 2, "java", javaServlet, "");
 
         HttpServlet jsServlet = new CirrusServlet();
-        test(ITS, 1, "js", jsServlet, "/");
+//        test(ITS, 1, "js", jsServlet, "/");
         test(ITS, 1, "js", jsServlet, "/test/hello");
 //        test(ITS, 2, "js", jsServlet, "/test/hello");
 
-//        HttpServlet jythonServlet = new JythonServlet();
-//        test(ITS, 1, "jython", jythonServlet, "/src/dynweb/test.py");
-//        test(ITS, 2, "jython", jythonServlet, "/src/dynweb/test.py");
+
+        HttpServlet jythonServlet = new JythonServlet();
+//        test(ITS, 1, "jython", jythonServlet, "/test.py");
+//        test(ITS, 2, "jython", jythonServlet, "/test.py");
+
+        System.out.println("done");
     }
 }
