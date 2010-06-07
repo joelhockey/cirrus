@@ -1,17 +1,19 @@
-var cirrus
-
-testCases(
-    test,
-    function setUp() {
-    	cirrus = new com.joelhockey.cirrus.CirrusServlet();
-    	var sconf = new com.joelhockey.cirrus.MockServletConfig();
-    	cirrus.init(sconf);
-    },
+PublicTest = {
+//    setUp: function() {
+//    	this.cirrus = new com.joelhockey.cirrus.CirrusServlet();
+//    	var sconf = new com.joelhockey.cirrus.MockServletConfig();
+//    	this.cirrus.init(sconf);
+//    },
     
-	function testRoot() {
-    	var req = new com.joelhockey.cirrus.MockHttpServletRequest("/");
-    	var res = new com.joelhockey.cirrus.MockHttpServletResponse();
-    	cirrus.service(req, res);
-    	assert.that(String(res.baos), matches(/welcome to cirrus/));
-	}
-)
+//	testRoot: function() {
+//    	var req = new com.joelhockey.cirrus.MockHttpServletRequest("/");
+//    	var res = new com.joelhockey.cirrus.MockHttpServletResponse();
+//    	this.cirrus.service(req, res);
+//    	assertMatches(/welcome to cirrus/, res.getResult());
+//	}
+        
+    testAdd: function() {
+        assertEquals(1, 1);
+        assertMatches(/abc/, "xabcx");
+    }
+}
