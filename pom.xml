@@ -55,6 +55,12 @@
     <!-- test -->
     <dependency>
       <groupId>com.joelhockey</groupId>
+      <artifactId>jsunit</artifactId>
+      <version>1.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.joelhockey</groupId>
       <artifactId>codec</artifactId>
       <version>1.1</version>
       <scope>test</scope>
