@@ -32,7 +32,7 @@ public class CirrusTest extends TestCase {
         res = new MockHttpServletResponse();
         servlet.service(req, res);
         String response = res.getResponse();
-        assertTrue("Expected res: 'Hello...', got: [" + response + "]", response.startsWith("Hello"));
+        assertTrue("Expected res: 'Hello...', got: [" + response + "]", response.contains("hello page"));
 
 //        System.out.println(res.getResponse());
     }

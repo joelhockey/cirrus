@@ -88,7 +88,7 @@ public class PerfTest implements Runnable {
     }
 
     public static void main(String[] args) throws Exception {
-        int ITS = 300000;
+        int ITS = 1000000;
         HttpServlet javaServlet = new JavaServlet();
 //        test(ITS, 1, "java", javaServlet, "");
 //        test(ITS, 2, "java", javaServlet, "");
