@@ -8,26 +8,27 @@ var JST = {
         var linepos = 1;
         var inEval = false;
         var inText = false;
-        var tokens = [];
+        var textparts = [];
+        var fcount = 0;
+        var toks = [];
         var groups;
-        // split body into tokens of either newline, value, opentag, closetag, text
+        // split body into toks of either newline, value, opentag, closetag, text
         while (body.length > 0) {
             if ((groups = /^\/\/[^\r\n]*/.exec(body)) != null) { // comment - ignore
             } else if ((groups = /^[ \t]*\r?\n/.exec(body)) != null) { // newline
-                tokens.push({type: "newline", token: groups[0], value: groups[0]});
+                toks.push({type: "newline", tok: groups[0], value: groups[0]});
             } else if ((groups = /^\$?{\/?([^\r\n{}]+)}/.exec(body)) != null) { // value, opentag, closetag
                 var type = body[0] == "$" ? "value" : body[1] == "/" ? "closetag" : "opentag";
                 var value = groups[1].replace(/^\s+|\s+$/g, ""); // trim space
-                tokens.push({type: type, token: groups[0], value: value, words: value.split(/\s+/)});
-            } else if ((groups = /^[^\r\n${]+/.exec(body)) != null || (groups = /^[^\r\n]+/) != null) {
-                tokens.push({type: "text", token: groups[0], value: groups[0]});
+                toks.push({type: type, tok: groups[0], value: value, words: value.split(/\s+/)});
+            } else if ((groups = /^[^\r\n${]+/.exec(body)) != null || (groups = /^[^\r\n]+/) != null) { // text
+                toks.push({type: "text", tok: groups[0], value: groups[0]});
             } else {
                 continue;
             }
             body = body.substring(groups[0].length);
         }
         
-        var textparts = [];
         var text = function() {
             if (textparts.length > 0) {
                 src.push('out.write("' + textparts.join('').replace(/\r?\n/g, '\\n\\\n').replace('"', '\\"') + '"); ');
@@ -35,126 +36,108 @@ var JST = {
             }
         }
         var error = function(desc) {
-            throw new Error(desc + ", line: " + line + ", linepos: " + linepos + ", tagstack: " + tagstack);
+            throw new Error(desc + ", line: " + line + "." + linepos + ", tagstack: [" + tagstack + "]");
         }
-        var fcount = 0;
 
         // skip blank lines at start
-        while (tokens.length > 0 && tokens[0].type == "newline") {
-            textparts.push(tokens.shift().token)
+        while (toks.length > 0 && toks[0].type == "newline") {
+            src.push(toks.shift().tok)
         }
         
-        // if first non-newline token not 'prototype' then wrap with 'function render'
-        if (tokens.length > 0 && (tokens[0].type != "opentag" || tokens[0].words[0] != "prototype")) {
-            tokens.unshift({type: "opentag", token: "{function render}", value: "function render", words: ["function", "render"]});
-            tokens.push({type: "closetag", token: "{/function render}", value: "function render", words: ["function", "render"]});
+        // if first non-newline tok not 'prototype' then wrap with 'function render'
+        if (toks.length > 0 && (toks[0].type != "opentag" || toks[0].words[0] != "prototype")) {
+            toks.unshift({type: "opentag", tok: "{function render}", value: "function render", words: ["function", "render"]});
+            toks.push({type: "closetag", tok: "{/function render}", value: "function render", words: ["function", "render"]});
         }
         
-        for each (token in tokens) {
-//print('token: ' + token.type + ", " + (token.type == "newline" ? "" : token.value))
-
+        for each (tok in toks) {
+            //print('tok: ' + tok.type + ", " + (tok.type == "newline" ? "" : tok.value))
             // newline
-            if (token.type == "newline") {
-//print('newline')
+            if (tok.type == "newline") {
                 line++;
-                linepos = 1 - token.value.length; // pos increased at bottom of for-loop
+                linepos = 1 - tok.value.length; // pos increased at bottom of for-loop
                 if (inEval || fcount == 0) {
-                    src.push(token.value);
+                    src.push(tok.value);
                 } else {
-                    textparts.push(token.value);
+                    textparts.push(tok.value);
                 }
 
             // are we at end of {text?}...{/text?} or {eval}...{/eval}
-            } else if ((inText || inEval) && token.type == "closetag" && token.value == toptag()) {
-//print('finishing text/eval')
+            } else if ((inText || inEval) && tok.type == "closetag" && tok.value == toptag()) {
                 text();
                 inText = inEval = false; // we are now finished 'text' or 'eval' section
             } else if (inText) { // still in text
-//print('still in text')
-                textlines.push(token);
+                textlines.push(tok);
             } else if (inEval) { // still in eval
-//print('still in eval')
-                src.push(token);
+                src.push(tok);
 
             // value substitution
-            } else if (token.type == "value") {
-//print('value ' + token.type + ', ' + token.token)
+            } else if (tok.type == "value") {
                 text(); // dump existing text
-                src.push("out.write(context." + token.value + ' || ""); ')
+                src.push('out.write(' + tok.value + ' || ""); ')
 
             // open tag
-            } else if (token.type == "opentag") {
-//print('opentag: ' + token.value)
-                if (token.words[0] == "prototype") {
-//print('opentag prototype')
-                    if (token.words.length != 2) { error("invalid tag format: " + token.token); }
+            } else if (tok.type == "opentag") {
+                if (tok.words[0] == "prototype") {
+                    if (tok.words.length != 2) { error("invalid tag format: " + tok.tok); }
                     text();
-                    src.push('JST.templates["' + name + '"].prototype = new JST.templates["' + token.words[1] + '"](); ');
-                } else if (token.words[0] == "function") {
-//print('opentag function')
-                    if (token.words.length != 2) { error("invalid tag format: " + token.token); }
+                    src.push('JST.templates["' + name + '"].prototype = new JST.templates["' + tok.words[1] + '"](); ');
+                } else if (tok.words[0] == "function") {
+                    if (tok.words.length != 2) { error("invalid tag format: " + tok.tok); }
                     fcount++;
                     text();
-                    src.push('if (typeof JST.templates["' + name + '"].prototype.' + token.words[1] + ' == "undefined") JST.templates["' + name + '"].prototype.' + token.words[1] + ' = function(out, context) { ');
-                    tagstack.push(token.value); // push 'function <fname>'
-                } else if (token.words[0] == "if") {
-//print('opentag if')
+                    src.push('if (typeof JST.templates["' + name + '"].prototype.' + tok.words[1] + ' == "undefined") JST.templates["' + name + '"].prototype.' + tok.words[1] + ' = function(out, cx) { ');
+                    tagstack.push(tok.value); // push 'function <fname>'
+                } else if (tok.words[0] == "if") {
                     text();
-                    src.push("if (" + token.words.slice(1).join(" ") + ") {");
+                    src.push(tok.value + " {");
                     tagstack.push("if");
-                } else if (token.words[0].match(/^else?if$/)) {
-//print('opentag elseif')
+                } else if (tok.words[0].match(/^else?if$/)) {
                     if (!toptag().match(/^(else?)?if$/)) { error("unexpected /else?if/ tag"); }
                     text();
-                    src.push("} else if (" + words.slice(1).join(" ") + ") {");
-                } else if (token.words[0] == "for") {
-//print('opentag for')
-                    if (!token.words.length == 4 || token.words[2] != "in") { error("invalid for tag: " + token.token); }
+                    src.push("} else if " + words.slice(1).join(" ") + " {");
+                } else if (tok.words[0] == "for") {
                     text();
-                    src.push("var forcounter = 0; for (var " + token.words[1] + " in context." + token.words[3] + ") { forcounter++; ");
+                    src.push("var forcounter = 0; " + tok.value + " { forcounter++; ");
                     tagstack.push("for");
-                } else if (token.words[0] == "forelse") {
-//print('opentag forelse')
+                } else if (tok.words[0] == "forelse") {
                     if (toptag() != "for") { error("unexpected forelse tag"); }
                     text();
                     src.push("} if (forcounter == 0) { ");
-                } else if (token.words[0] == "eval") {
-//print('opentag eval')
+                } else if (tok.words[0] == "eval") {
                     text();
-                    if (token.words.length == 1) {
+                    if (tok.words.length == 1) {
                          inEval = true;
                          tagstack.push("eval");
-                    } else {
-                        src.push(token.words.slice(1).join(" "));
+                    } else { // inline eval
+                        src.push(tok.words.slice(1).join(" "));
                     }
-                } else if (token.words[0].match(/^text/)) {
-//print('opentag text')
+                } else if (tok.words[0].match(/^text/)) {
                     inText = true;
-                    tagstack.push(token.value);
+                    tagstack.push(tok.value);
                 } else {
-//print('opentag ?')
-                    error("unrecognised tag " + token.token);
+                    error("unrecognised tag " + tok.tok);
                 }
 
             // close tag
-            } else if (token.type == "closetag") {
-//print('closetag')
-                if (tagstack.length == 0 || toptag() != token.value) { error("unexepcted closetag " + token.token); }
+            } else if (tok.type == "closetag") {
+                if (toptag() != tok.value) { error("unexepcted closetag " + tok.tok); }
                 tagstack.pop();
                 text();
-                if (token.words[0] == "function") {
+                if (tok.words[0] == "function") {
                     fcount--;
-                    src.push(fcount > 0 ? "}; this." + token.words[1] + "(out, context); " : "}; ");
+                    src.push(fcount > 0 ? "}; this." + tok.words[1] + "(out, cx); " : "}; ");
                 } else {
                     src.push("} ");
                 }
 
             // text
+            } else if (tok.type == "text") {
+                textparts.push(tok.value);
             } else {
-//print('pushing text [' + token.value + ']')
-                textparts.push(token.value);
+            	error("invalid token type: " + tok.type)
             }
-            linepos += token.value.length
+            linepos += tok.value.length
         }
         text();
         return src.join("");
