@@ -103,6 +103,7 @@ public class CirrusServlet extends HttpServlet {
             Function cirrus = (Function) scope.get("cirrus", scope);
             Context cx = Context.enter();
             try {
+            	cx.setOptimizationLevel(9);
                 cirrus.call(cx, scope, scope, new Object[] {req, res});
             } finally {
                 Context.exit();

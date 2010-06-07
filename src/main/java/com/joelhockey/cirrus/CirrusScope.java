@@ -30,7 +30,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.io.Reader;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +44,7 @@ import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
+import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.NativeJavaArray;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.NativeObject;
@@ -94,7 +94,7 @@ public class CirrusScope extends ImporterTopLevel {
             "readFile",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
-        put("log", this, new NativeJavaObject(this, jsLog, null));
+        put("log", this, Context.javaToJS(log, this));
     }
 
     public byte[] b64_s2b(String s) { return B64.s2b(s); }
@@ -250,6 +250,8 @@ public class CirrusScope extends ImporterTopLevel {
             ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
             Function f = (Function) templates.get(name, templates);
             return (NativeObject) f.construct(cx, this, null);
+        } catch (JavaScriptException jse) {
+        	throw new IOException("Error loading views/" + name + ".js: " + jse.getMessage(), jse);
         } finally {
             Context.exit();
         }
@@ -298,7 +300,7 @@ public class CirrusScope extends ImporterTopLevel {
                 templateCache.put(rpath, entry);
             }
             ScriptableObject.callMethod(cx, template, "render",
-                    new Object[] {new NativeJavaObject(this, res.getWriter(), PrintWriter.class), context});
+                    new Object[] {Context.javaToJS(res.getWriter(), template), context});
         } finally {
             Context.exit();
         }
