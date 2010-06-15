@@ -49,6 +49,13 @@
         </fileset>
       </batchtest>
     </jsunit>
+    <mkdir dir="target/report/html" />
+    <junitreport todir="target/report">
+      <fileset dir="target/surefire-reports">
+        <include name="TEST-*.xml"/>
+      </fileset>
+      <report format="frames" todir="target/report/html"/>
+    </junitreport>
   </target>
   
   <target name="war" depends="compile" description="war">
