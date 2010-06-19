@@ -158,10 +158,11 @@ for provides a variable 'forcounter' which starts at 0.
     {elseif}
         _other content_
     {/if}
+the elseif tag can use elif and elsif variations
     
 #### text tag
     {text}
-      _content is not interpreted_
+        _content is not interpreted_
     {/text}
 The name of the text tag can be any value that starts with 'text'.
 For example, the following block of code will print out the text
