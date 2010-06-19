@@ -72,6 +72,7 @@ controller and view:
 * res - HttpServletResponse object
 * controller - controller parsed from path ('pub' by default)
 * action - action parsed from path ('index' by default)
+* cx - context object within views
 
 ## Cirrus Templates
 Cirrus templates are inspired from ideas in
@@ -115,4 +116,67 @@ app/views/example/hello.jst
       {/for}
     {/function body}
 
+### Cirrus Template Syntax
+All cirrus tags use curly braces to denote tags.  Supported tags are:
 
+* variable expansion
+* prototype
+* function
+* for / forelse
+* if / elseif / elif
+* text / text?
+* eval
+
+#### variable expansion
+    ${_variable name_}
+Variables are printed using the variable expansion syntax.
+    
+#### prototype tag
+    {prototype _parent template_}
+The prototype tag must be on the first line of a file if it is being used.
+It defines which template is to be used as the parent.
+
+#### function tag
+    {function _function name_}
+        _content_
+    {/function _function name_}
+
+Blocks of code that are defined by parents and overriden by children
+templates use the function tag.
+
+#### for tag
+    {for (var _name_ in _list_)}
+        _content_
+    {forelse}
+       _executed if no items in list_
+    {/for}
+for provides a variable 'forcounter' which starts at 0.
+
+#### if tag
+    {if (_boolean expression_)}
+        _content_
+    {elseif}
+        _other content_
+    {/if}
+    
+#### text tag
+    {text}
+      _content is not interpreted_
+    {/text}
+The name of the text tag can be any value that starts with 'text'.
+For example, the following block of code will print out the text
+tag syntax description above.
+    {text-EOF}
+    {text}
+        _content is not interpreted_
+    {/text}
+    {text-EOF}
+
+#### eval tag
+    {eval _evaluated as javascript_ }
+or
+    {eval}
+        _evaluated as javascript_
+    {/eval}
+eval supports either an 'inline' eval or a multi-line version with
+start and end tags.
