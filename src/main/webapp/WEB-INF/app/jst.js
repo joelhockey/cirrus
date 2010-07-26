@@ -21,7 +21,7 @@ var JST = {
                 var type = body[0] == "$" ? "value" : body[1] == "/" ? "closetag" : "opentag";
                 var value = groups[1].replace(/^\s+|\s+$/g, ""); // trim space
                 toks.push({type: type, tok: groups[0], value: value, words: value.split(/\s+/)});
-            } else if ((groups = /^[^\r\n${]+/.exec(body)) != null || (groups = /^[^\r\n]+/) != null) { // text
+            } else if ((groups = /^[^\r\n${]+/.exec(body)) != null || (groups = /^[^\r\n]+/.exec(body)) != null) { // text
                 toks.push({type: "text", tok: groups[0], value: groups[0]});
             } else {
                 continue;
@@ -31,12 +31,12 @@ var JST = {
         
         var text = function() {
             if (textparts.length > 0) {
-                src.push('out.write("' + textparts.join('').replace(/\r?\n/g, '\\n\\\n').replace('"', '\\"') + '"); ');
+                src.push('out.write("' + textparts.join('').replace(/\r?\n/g, '\\n\\\n').replace(/"/g, '\\"') + '"); ');
                 textparts = [];
             }
         }
         var error = function(desc) {
-            throw new Error(desc + ", line: " + line + "." + linepos + ", tagstack: [" + tagstack + "]");
+            throw new Error(desc + ", line: " + line + "." + linepos + ", tagstack: [" + tagstack.join(" > ") + "]");
         }
 
         // skip blank lines at start
@@ -92,7 +92,7 @@ var JST = {
                     text();
                     src.push(tok.value + " {");
                     tagstack.push("if");
-                } else if (tok.words[0].match(/^else?if$/)) {
+                } else if (tok.words[0].match(/^els?e?if$/)) {
                     if (!toptag().match(/^(else?)?if$/)) { error("unexpected /else?if/ tag"); }
                     text();
                     src.push("} else if " + words.slice(1).join(" ") + " {");

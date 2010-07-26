@@ -27,12 +27,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Enumeration;
 
+import javax.naming.InitialContext;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.sql.DataSource;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -61,6 +63,19 @@ public class CirrusServlet extends HttpServlet {
         }
     };
 
+
+    /** Ensure DB is at correct version, if not run migrations.  */
+    @Override
+    public void init() throws ServletException {
+        try {
+            CirrusScope scope = localScope.get();
+            scope.load("/WEB-INF/db/migrate.js");
+        } catch (Exception e) {
+            log.error("Error migrating db", e);
+            throw new ServletException("Error migrating db", e);
+        }
+    }
+
     /**
      * Forward requests to WEB-INF/app/cirrus.js.
      * Puts variables, path, method and params (NativeObject), publicFiles (NativeObject) into global scope.
@@ -71,10 +86,9 @@ public class CirrusServlet extends HttpServlet {
             CirrusScope scope = localScope.get();
             if (scope.load("/WEB-INF/app/cirrus.js")) {
                 NativeObject publicFiles = new NativeObject();
-                for (File dir : new File(getServletContext().getRealPath("/WEB-INF/public")).listFiles()) {
-                    if (dir.isDirectory()) {
-                        publicFiles.put(dir.getName(), scope, true);
-                    }
+                for (File f : new File(getServletContext().getRealPath("/WEB-INF/public")).listFiles()) {
+                    log.info("public: " + f.getName() + (f.isDirectory() ? " : dir" : " : file"));
+                    publicFiles.put(f.getName(), publicFiles, true);
                 }
                 scope.put("publicFiles", scope, publicFiles);
             }

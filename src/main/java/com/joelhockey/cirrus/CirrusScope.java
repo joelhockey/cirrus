@@ -27,6 +27,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -45,15 +46,12 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
 import org.mozilla.javascript.JavaScriptException;
-import org.mozilla.javascript.NativeJavaArray;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.tools.shell.Global;
-
-import com.joelhockey.codec.B64;
-import com.joelhockey.codec.Hex;
 
 /**
  * Rhino scope for CirrusServlet.  Based on {@link Global}.
@@ -63,8 +61,8 @@ import com.joelhockey.codec.Hex;
  * @author Joel Hockey
  */
 public class CirrusScope extends ImporterTopLevel {
-	private static final Log log = LogFactory.getLog(CirrusScope.class);
-	private static final Log jsLog = LogFactory.getLog("com.joelhockey.cirrus.js");
+    private static final long serialVersionUID = 0xDC7C4EC5275394BL;
+    private static final Log log = LogFactory.getLog(CirrusScope.class);
     public static final long RELOAD_WAIT = 3000;
     private ServletConfig sconf;
     private Map<String, CacheEntry> fileCache = new HashMap<String, CacheEntry>();
@@ -82,25 +80,17 @@ public class CirrusScope extends ImporterTopLevel {
         super(cx);
         this.sconf = sconf;
         String[] names = {
-            "b64_s2b",
-            "b64_b2s",
             "fileLastModified",
-            "hex_s2b",
-            "hex_b2s",
             "jst",
             "load",
             "parseFile",
             "print",
+            "printf",
             "readFile",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
-        put("log", this, Context.javaToJS(log, this));
+        put("sconf", this, Context.javaToJS(sconf, this));
     }
-
-    public byte[] b64_s2b(String s) { return B64.s2b(s); }
-    public String b64_b2s(NativeJavaArray buf) { return B64.b2s((byte[]) buf.unwrap()); }
-    public byte[] hex_s2b(String s) { return Hex.s2b(s); }
-    public String hex_b2s(NativeJavaArray buf) { return Hex.b2s((byte[]) buf.unwrap()); }
 
     /**
      * Return last modified date of given file.  Caches results and stores for
@@ -151,25 +141,24 @@ public class CirrusScope extends ImporterTopLevel {
 
     /**
      * Parse file and put into local cache.
-      * @param path URL path will be converted to real path
+     * @param fullpath full path to file
      * @return true if file was (re)loaded, false if no change
      * @throws IOException if error reading file
      */
-    public boolean parseFile(String path) throws IOException {
-        log.info("parsing file: " + path);
-        // check cache again inside synchronized method
-        CacheEntry entry = fileCache.get(path);
-        if (entry != null && new File(path).lastModified() == entry.lastModified) {
-            log.debug("file already parsed: " + path);
+    public boolean parseFile(String fullpath) throws IOException {
+        log.info("parsing file: " + fullpath);
+        CacheEntry entry = fileCache.get(fullpath);
+        if (entry != null && new File(fullpath).lastModified() == entry.lastModified) {
+            log.debug("file already parsed: " + fullpath);
             return false;
         }
-        File file = new File(path);
+        File file = new File(fullpath);
         Reader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
         Context cx = Context.enter();
         try {
-            Object obj = cx.evaluateReader(this, reader, path, 1, null);
+            Object obj = cx.evaluateReader(this, reader, fullpath, 1, null);
             reader.close();
-            fileCache.put(path, new CacheEntry(path, file.lastModified(), System.currentTimeMillis(), obj));
+            fileCache.put(fullpath, new CacheEntry(fullpath, file.lastModified(), System.currentTimeMillis(), obj));
             return true;
         } finally {
             Context.exit();
@@ -177,19 +166,14 @@ public class CirrusScope extends ImporterTopLevel {
     }
 
     public String readFile(String path, Object objOuts) throws IOException {
-        if (objOuts == null) {
+        if (objOuts == null || objOuts instanceof Undefined) {
             log.info("readFile: " + path);
             return readFile(path);
         } else {
             log.info("readFile(stream): " + path);
-            Context cx = Context.enter();
-            try {
-                OutputStream outs = (OutputStream) cx.jsToJava(objOuts, OutputStream.class);
-                readFileIntoStream(path, outs);
-                return null;
-            } finally {
-                cx.exit();
-            }
+            OutputStream outs = (OutputStream) Context.jsToJava(objOuts, OutputStream.class);
+            readFileIntoStream(path, outs);
+            return null;
         }
     }
 
@@ -205,9 +189,13 @@ public class CirrusScope extends ImporterTopLevel {
             throw new IOException("No path for file: " + path);
         }
         FileInputStream fis = new FileInputStream(rpath);
-        byte[] buf = new byte[4096];
-        for (int l = 0; (l = fis.read(buf)) != -1; ) {
-            outs.write(buf, 0, l);
+        try {
+            byte[] buf = new byte[4096];
+            for (int l = 0; (l = fis.read(buf)) != -1; ) {
+                outs.write(buf, 0, l);
+            }
+        } finally {
+            fis.close();
         }
     }
 
@@ -229,6 +217,20 @@ public class CirrusScope extends ImporterTopLevel {
         log.info(sb);
     }
 
+    /**
+     * printf.
+     * @param cx javascript context - ignored
+     * @param thisObj scope - ignored
+     * @param args first value is printf format string, other args get substituted
+     * @param funObj function - ignored
+     * @return printf result
+     */
+    public static String printf(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        Object[] formatArgs = new Object[args.length - 1];
+        System.arraycopy(args, 1, formatArgs, 0, formatArgs.length);
+        return String.format(args[0].toString(), formatArgs);
+    }
+
     private NativeObject loadjst(String name) throws IOException {
         String path = "/WEB-INF/app/views/" + name.replace(".", "/") + ".jst";
         log.info("loadjst: " + path);
@@ -245,13 +247,27 @@ public class CirrusScope extends ImporterTopLevel {
         try {
             log.info("JST.parse(" + name + ".jst)");
             String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
-            log.debug("compiled template " + name + ".jst:\n" + source);
+            File tempDir = (File) sconf.getServletContext().getAttribute("javax.servlet.context.tempdir");
+            if (tempDir != null) {
+                File jstDir = new File(tempDir, "jst");
+                jstDir.mkdir();
+                File compiledJstFile = new File(jstDir, name + ".js");
+                log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
+                FileOutputStream fos = new FileOutputStream(compiledJstFile);
+                try {
+                    fos.write(source.getBytes());
+                } finally {
+                    fos.close();
+                }
+            }
             cx.evaluateString(this, source, "views/" + name + ".js", 1, null);
             ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
             Function f = (Function) templates.get(name, templates);
             return (NativeObject) f.construct(cx, this, null);
         } catch (JavaScriptException jse) {
-        	throw new IOException("Error loading views/" + name + ".js: " + jse.getMessage(), jse);
+        	IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
+        	ioe.initCause(jse);
+        	throw ioe;
         } finally {
             Context.exit();
         }

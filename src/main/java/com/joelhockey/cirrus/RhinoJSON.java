@@ -21,35 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+package com.joelhockey.cirrus;
 
-var pub = {
-    getLastModified: function(req) {
-	    return fileLastModified(this.getPublicPath(req));
-	},
+import com.joelhockey.codec.JSON;
 
-	get: function(req, res) {
-		try {
-			readFile(this.getPublicPath(req), res.getOutputStream());
-		} catch (e) {
-			// file not found
-			res.setStatus(404);
-		}
-    },
-    
-    getPublicPath: function(req) {
-        var publicPath = req.getAttribute("com.joelhockey.cirrus.public_path");
-        if (publicPath) { return publicPath; }
-        var dirs = pathdirs;
-        // default file for '/' is 'index.html'
-        if (!dirs[0]) {
-        	dirs = ["index.html"];
-        }
-        // add '.html' suffix if no file type given
-        if (dirs[dirs.length - 1].indexOf(".") == -1) {
-        	dirs[dirs.length -1] += ".html";
-        }
-        var publicPath = "/WEB-INF/public/" + dirs.join("/");
-        req.setAttribute("com.joelhockey.cirrus.public_path", publicPath);
-        return publicPath;
+/**
+ * JSON for use in js scripts.
+ * @author Joel Hockey
+ */
+
+public class RhinoJSON {
+    public static String stringify(Object obj) {
+        return JSON.stringify(RhinoJava.rhino2java(obj));
+    }
+
+    public static Object parse(String json) {
+        return RhinoJava.java2rhino(JSON.parse(json));
     }
 }
