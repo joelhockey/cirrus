@@ -50,14 +50,14 @@
             </goals>
             <configuration>
               <tasks>
-                <taskdef name="jsunit" classname="com.joelhockey.jsunit.JSUnitTask" classpathref="maven.test.classpath" />
-                <jsunit classpathref="maven.test.classpath" >
+                <taskdef name="jairusunit" classname="com.joelhockey.jairusunit.JairusUnitTask" classpathref="maven.test.classpath" />
+                <jairusunit classpathref="maven.test.classpath" >
                   <batchtest>
                     <fileset dir="src/test/javascript">
                       <include name="**/*test*.js"/>
                     </fileset>
                   </batchtest>
-                </jsunit>
+                </jairusunit>
               </tasks>
             </configuration>
           </execution>
@@ -107,7 +107,7 @@
     <!-- test -->
     <dependency>
       <groupId>com.joelhockey</groupId>
-      <artifactId>jsunit</artifactId>
+      <artifactId>jairusunit</artifactId>
       <version>1.0</version>
       <scope>test</scope>
     </dependency>

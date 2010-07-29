@@ -33,13 +33,13 @@
   </target>
 
   <target name="test" depends="compile-test" description="test">
-    <taskdef name="jsunit" classname="com.joelhockey.jsunit.JSUnitTask">
+    <taskdef name="jairusunit" classname="com.joelhockey.jairusunit.JairusUnitTask">
       <classpath>
         <fileset dir="lib" />
       </classpath>
     </taskdef>
     
-    <jsunit>
+    <jairusunit>
       <classpath>
         <fileset dir="lib" />
       </classpath>
@@ -48,7 +48,7 @@
           <include name="**/*test*.js"/>
         </fileset>
       </batchtest>
-    </jsunit>
+    </jairusunit>
     <mkdir dir="target/report/html" />
     <junitreport todir="target/report">
       <fileset dir="target/surefire-reports">
