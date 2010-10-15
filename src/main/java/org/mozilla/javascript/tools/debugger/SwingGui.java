@@ -2111,8 +2111,7 @@ class FileWindow extends JInternalFrame implements ActionListener {
      */
     int currentPos;
 
-    private int[] lineStartOffsets = new int[16];
-    int lineCount = 0;
+    private int[] lineStartOffsets = {};
 
     /**
      * Loads the file.
@@ -2131,14 +2130,25 @@ class FileWindow extends JInternalFrame implements ActionListener {
      * Returns the offset position for the given line.
      */
     public int getLineStartOffset(int line) {
-        return line >= 0 && line < lineCount ? lineStartOffsets[line] : -1;
+//        try {
+//            return textArea.getLineStartOffset(line);
+//        } catch (BadLocationException ble) {
+//            return -1;
+//        }
+        return line >= 0 && line < lineStartOffsets.length ? lineStartOffsets[line] : -1;
     }
     public int getLineCount() {
-        return lineCount;
+//        return textArea.getLineCount();
+        return lineStartOffsets.length;
     }
     public int getLineOfOffset(int offset) {
+//        try {
+//            return textArea.getLineOfOffset(offset);
+//        } catch (BadLocationException ble) {
+//            return 0;
+//        }
         int i = 0;
-        while (i < lineCount && offset < lineStartOffsets[i++]);
+        while (i < lineStartOffsets.length && offset < lineStartOffsets[i++]);
         return i + 1;
     }
 
@@ -2248,16 +2258,12 @@ class FileWindow extends JInternalFrame implements ActionListener {
             textArea.select(pos);
 
             // re-calculate lineOffsets
-            lineCount = 1;
-            int i = 0;
-            while ((i = newText.indexOf("\n", i)) != -1) {
-                if (lineCount == lineStartOffsets.length) {
-                    // expand
-                    int[] bigger = new int[lineStartOffsets.length * 2];
-                    System.arraycopy(lineStartOffsets, 0, bigger, 0, lineStartOffsets.length);
-                    lineStartOffsets = bigger;
-                }
-                lineStartOffsets[lineCount++] = i++;
+            String[] lines = newText.split("\r?\n");
+            lineStartOffsets = new int[lines.length];
+            int offset = 0;
+            for (int i = 0; i < lines.length; i++) {
+                lineStartOffsets[i] = offset;
+                offset += lines[i].length() + 1;
             }
         }
         fileHeader.update();
