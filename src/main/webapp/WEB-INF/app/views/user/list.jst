@@ -1,0 +1,10 @@
+{prototype default}
+{function body}
+<h3>users</h3>
+<table>
+  <tr><th>username</th><th>created</th></tr>
+{for each (var user in users)}
+    <tr><td>${user.username}</td><td>${user.createdAt}</td></tr>
+{/for}
+</table>
+{/function body}

@@ -32,76 +32,117 @@ import java.io.StringWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+
+import javax.sql.DataSource;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.mozilla.javascript.NativeArray;
+import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.Scriptable;
 
 import com.joelhockey.codec.Hex;
 import com.joelhockey.codec.JSON;
 
 public class DB {
-    private static final Log log = LogFactory.getLog(DB.class);
+    private final Log log = LogFactory.getLog(DB.class);
+    private static final Object[] EMPTY = null;
+    private Scriptable scope;
+    private DataSource dataSource;
+    private Connection dbconn;
 
     /**
-     * insert.
-     * @param dbconn db connection
-     * @param sql sql insert statement
-     * @return number of records inserted
-     * @throws SQLException if sql error
+     * Construct DB with data source.
+     * @param scope js scope
+     * @param dataSource data source
+     * @throws SQLException if error getting connection from data source
      */
-    public static int insert(Connection dbconn, String sql) throws SQLException {
-        return insert(dbconn, sql, new Object[0]);
+    public DB(Scriptable scope, DataSource dataSource) throws SQLException {
+        this.scope = scope;
+        this.dataSource = dataSource;
+        this.dbconn = dataSource.getConnection();
+    }
+
+    /**
+     * Close DB connection.
+     */
+    public void close() {
+        try {
+            if (dbconn != null) {
+                dbconn.close();
+            }
+        } catch (Exception e) {
+            log.error("Error closing dbconn", e);
+        }
+    }
+
+    /**
+     * execute.
+     * @param sql sql statement(s) to execute
+     * @throws SQLException
+     */
+    public void execute(String sql) throws SQLException {
+        update(sql, "execute", EMPTY);
     }
 
     /**
      * insert.
-     * @param dbconn db connection
+     * @param sql sql insert statement
+     * @return number of records inserted
+     * @throws SQLException if sql error
+     */
+    public int insert(String sql) throws SQLException {
+        return insert(sql, EMPTY);
+    }
+
+    /**
+     * insert.
      * @param sql sql insert statement with '?' for params
      * @param params params
      * @return number of records inserted
      * @throws SQLException if sql error
      */
-    public static int insert(Connection dbconn, String sql, Object... params) throws SQLException {
-        return update(dbconn, sql, "insert", params);
+    public int insert(String sql, Object... params) throws SQLException {
+        return update(sql, "insert", params);
     }
 
     /**
      * update.
-     * @param dbconn db connection
      * @param sql sql update statement
      * @return number of records updated
      * @throws SQLException if sql error
      */
-    public static int update(Connection dbconn, String sql) throws SQLException {
-        return update(dbconn, sql, new Object[0]);
+    public int update(String sql) throws SQLException {
+        return update(sql, EMPTY);
     }
 
     /**
      * update.
-     * @param dbconn db connection
      * @param sql sql update statement with '?' for params
      * @param params params
      * @return number of records updated
      * @throws SQLException if sql error
      */
-    public static int update(Connection dbconn, String sql, Object... params) throws SQLException {
-        return update(dbconn, sql, "update", params);
+    public int update(String sql, Object... params) throws SQLException {
+        return update(sql, "update", params);
     }
 
     /**
      * update.
-     * @param dbconn db connection
      * @param sql sql insert or update statement with '?' for params
      * @param sqlcmd 'insert' or 'update' used for logging
      * @param params params
      * @return number of records inserted or updated
      * @throws SQLException if sql error
      */
-    private static int update(Connection dbconn, String sql, String sqlcmd, Object... params) throws SQLException {
+    private int update(String sql, String sqlcmd, Object... params) throws SQLException {
         long start = System.currentTimeMillis();
         boolean ok = false;
         int count = -1;
@@ -115,10 +156,10 @@ public class DB {
             ok = true;
             return count;
         } finally {
-            long end = System.currentTimeMillis();
-            log.debug(format("sql: %s : %s : %d : %05d : %s : %s : %d",
-                    sqlcmd, ok ? "ok" : "error", count, (end - start), sql,
-                    JSON.stringify(params), count));
+            long timeTaken = System.currentTimeMillis() - start;
+            log.debug(format("sql: %s : %s : %d : %05d : %s : %s",
+                    sqlcmd, ok ? "ok" : "error", count, timeTaken, sql,
+                    JSON.stringify(params)));
             if (stmt != null) {
                 try {
                     stmt.close();
@@ -131,47 +172,64 @@ public class DB {
 
     /**
      * delete.
-     * @param dbconn db connection
      * @param sql sql delete statement
      * @return number of records deleted
      * @throws SQLException if sql error
      */
-    public static int delete(Connection dbconn, String sql) throws SQLException {
-        return delete(dbconn, sql, new Object[0]);
+    public int delete(String sql) throws SQLException {
+        return delete(sql, EMPTY);
     }
 
     /**
      * delete.
-     * @param dbconn db connection
      * @param sql sql delete statement with '?' for params
      * @param params params
      * @return number of records deleted
      * @throws SQLException if sql error
      */
-    public static int delete(Connection dbconn, String sql, Object... params) throws SQLException {
-        return update(dbconn, sql, "delete", params);
+    public int delete(String sql, Object... params) throws SQLException {
+        return update(sql, "delete", params);
+    }
+
+    /**
+     * delete without using javascript 'delete' keyword.
+     * @param sql sql delete statement with '?' for params
+     * @return number of records deleted
+     * @throws SQLException if sql error
+     */
+    public int dl33t(String sql) throws SQLException {
+        return delete(sql, EMPTY);
+    }
+
+    /**
+     * delete without using javascript 'delete' keyword.
+     * @param sql sql delete statement with '?' for params
+     * @param params params
+     * @return number of records deleted
+     * @throws SQLException if sql error
+     */
+    public int dl33t(String sql, Object... params) throws SQLException {
+        return delete(sql, params);
     }
 
     /**
      * select. Caller MUST close statement.
-     * @param dbconn db connection
      * @param sql sql select statement
      * @return PreparedStatement and ResultSet
      * @throws SQLException if sql error
      */
-    public static StatementResultSet select(Connection dbconn, String sql) throws SQLException {
-        return select(dbconn, sql, new Object[0]);
+    public StatementResultSet select(String sql) throws SQLException {
+        return select(sql, EMPTY);
     }
 
     /**
      * select. Caller MUST close statement.
-     * @param dbconn db connection
      * @param sql sql select statement with '?' for params
      * @param params params
      * @return [PreparedStatement, ResultSet]
      * @throws SQLException if sql error
      */
-    public static StatementResultSet select(Connection dbconn, String sql, Object... params) throws SQLException {
+    public StatementResultSet select(String sql, Object... params) throws SQLException {
         long start = System.currentTimeMillis();
         boolean ok = false;
         try {
@@ -181,33 +239,89 @@ public class DB {
             ok = true;
             return new StatementResultSet(stmt, rs);
         } finally {
-            long end = System.currentTimeMillis();
+            long timeTaken = System.currentTimeMillis() - start;
             log.debug(format("sql: select : %s : %05d : %s : %s",
-                    ok ? "ok" : "error", (end - start), sql, JSON.stringify(params)));
+                    ok ? "ok" : "error", timeTaken, sql, JSON.stringify(params)));
         }
     }
 
     /**
-     * select int.
-     * @param dbconn db connection
-     * @param sql sql statement that selects a single int value
-     * @return result
+     * Return all rows converted to JS object
+     * @param sql sql select statement with '?' for params
+     * @param params params
+     * @return js NativeArray of NativeObject
      * @throws SQLException if sql error
      */
-    public static int selectInt(Connection dbconn, String sql) throws SQLException {
-        return selectInt(dbconn, sql, new Object[0]);
+    public NativeArray selectAll(String sql, Object... params) throws SQLException {
+        List<NativeObject> result = new ArrayList<NativeObject>();
+        boolean ok = false;
+        StatementResultSet stmtRs = select(sql, params);
+        long start = System.currentTimeMillis();
+        try {
+            ResultSet rs = stmtRs.getResultSet();
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                NativeObject obj = new NativeObject();
+                ScriptRuntime.setObjectProtoAndParent(obj, scope);
+                result.add(obj);
+                // sql stuff is 1-based!
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    Object value = null;
+                    switch (meta.getColumnType(i)) {
+                    case Types.DATE:
+                        value = rs.getDate(i);
+                        break;
+                    case Types.INTEGER:
+                        value = rs.getInt(i);
+                        break;
+                    case Types.VARCHAR:
+                        value = rs.getString(i);
+                        break;
+                    default:
+                        throw new SQLException("unrecognised type: " + meta.getColumnType(i));
+                    }
+                    StringBuilder label = new StringBuilder();
+                    String[] parts = meta.getColumnName(i).split("_");
+                    for (int j = 0; j < parts.length; j++) {
+                        String part = parts[j].toLowerCase();
+                        if (j > 0) {
+                            part = part.substring(0, 1).toUpperCase() + part.substring(1);
+                        }
+                        label.append(part);
+                    }
+                    obj.put(label.toString(), scope, value);
+                }
+            }
+            ok = true;
+        } finally {
+            stmtRs.close();
+            long timeTaken = System.currentTimeMillis() - start;
+            log.debug(format("sql: selectAll : %s : %05d : %d", ok ? "ok" : "error", timeTaken, result.size()));
+        }
+        NativeArray na = new NativeArray(result.toArray());
+        ScriptRuntime.setObjectProtoAndParent(na, scope);
+        return na;
     }
 
     /**
      * select int.
-     * @param dbconn db connection
+     * @param sql sql statement that selects a single int value
+     * @return result
+     * @throws SQLException if sql error
+     */
+    public int selectInt(String sql) throws SQLException {
+        return selectInt(sql, EMPTY);
+    }
+
+    /**
+     * select int.
      * @param sql sql statement with '?' for params that selects a single int value
      * @param params params
      * @return result
      * @throws SQLException if sql error
      */
-    public static int selectInt(Connection dbconn, String sql, Object... params) throws SQLException {
-        StatementResultSet stmtRs = select(dbconn, sql, params);
+    public int selectInt(String sql, Object... params) throws SQLException {
+        StatementResultSet stmtRs = select(sql, params);
         try {
             if (!stmtRs.getResultSet().next()) {
                 throw new SQLException(format("No records found for sql: %s, %s",
@@ -229,13 +343,12 @@ public class DB {
 
     /**
      * select string.
-     * @param dbconn db connection
      * @param sql sql select statement that selects a single string
      * @return result
      * @throws SQLException if sql error
      */
-    public static String selectStr(Connection dbconn, String sql) throws SQLException {
-        return selectStr(dbconn, sql, new Object[0]);
+    public String selectStr(String sql) throws SQLException {
+        return selectStr(sql, EMPTY);
     }
 
     /**
@@ -246,8 +359,8 @@ public class DB {
      * @return result
      * @throws SQLException if sql error
      */
-    public static String selectStr(Connection dbconn, String sql, Object... params) throws SQLException {
-        StatementResultSet stmtRs = select(dbconn, sql, params);
+    public String selectStr(String sql, Object... params) throws SQLException {
+        StatementResultSet stmtRs = select(sql, params);
         try {
             if (!stmtRs.getResultSet().next()) {
                 throw new SQLException(format("No records found for sql: %s, %s",
@@ -274,7 +387,7 @@ public class DB {
      * @param params params
      * @throws SQLException if sql error
      */
-    public static void setParams(PreparedStatement stmt, Object... params) throws SQLException {
+    public void setParams(PreparedStatement stmt, Object... params) throws SQLException {
         if (params == null || params.length == 0) {
             return;
         }
@@ -292,6 +405,8 @@ public class DB {
                 stmt.setDouble(i + 1, (Double) p);
             } else if (p instanceof Date) {
                 stmt.setTimestamp(i + 1, new java.sql.Timestamp(((Date) p).getTime()));
+            } else if (p instanceof Boolean) {
+                stmt.setBoolean(i + 1, (Boolean) p);
             } else if (p instanceof byte[]) {
                 stmt.setString(i + 1, Hex.b2s((byte[]) p));
             } else if (p instanceof Throwable) {
@@ -312,7 +427,7 @@ public class DB {
      * @throws IOException if io error
      * @throws SQLException if sql error
      */
-    public static String getClob(ResultSet rs, int col) throws IOException, SQLException {
+    public String getClob(ResultSet rs, int col) throws IOException, SQLException {
         char[] cbuf = new char[4096];
         return getClob(rs, col, cbuf);
     }
@@ -326,7 +441,7 @@ public class DB {
      * @throws IOException if io error
      * @throws SQLException if sql error
      */
-    public static String getClob(ResultSet rs, int col, char[] cbuf) throws IOException, SQLException {
+    public String getClob(ResultSet rs, int col, char[] cbuf) throws IOException, SQLException {
         Reader cs = rs.getCharacterStream(col);
         if (cs == null) {
             return null;

@@ -25,6 +25,7 @@ package com.joelhockey.cirrus;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Connection;
 import java.util.Enumeration;
 
 import javax.naming.InitialContext;
@@ -35,13 +36,18 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.tools.debugger.Main;
 
 /**
  * Main servlet for cirrus.  Copied some ideas from jython's PyServlet.
@@ -50,7 +56,10 @@ import org.mozilla.javascript.NativeObject;
  * @author Joel Hockey
  */
 public class CirrusServlet extends HttpServlet {
+    private static final long serialVersionUID = 0x26FAB6AD9ECB6BDCL;
     private static final Log log = LogFactory.getLog(CirrusServlet.class);
+
+    private boolean debugjs = false;
     private ThreadLocal<CirrusScope> localScope = new ThreadLocal<CirrusScope>() {
         @Override
         protected CirrusScope initialValue() {
@@ -62,17 +71,60 @@ public class CirrusServlet extends HttpServlet {
             }
         }
     };
+    private ThreadLocal<Main> debugger = new ThreadLocal<Main>() {
+        @Override
+        protected Main initialValue() {
+//          try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
+            Main main = new Main("Cirrus Debug " + Thread.currentThread().getName());
+//            main.doBreak();
+            main.setScope(localScope.get());
+            main.attachTo(ContextFactory.getGlobal());
+            main.pack();
+            main.setSize(800, 600);
+            main.setVisible(true);
+            return main;
+        }
+    };
+
+    private DataSource dataSource;
 
 
     /** Ensure DB is at correct version, if not run migrations.  */
     @Override
     public void init() throws ServletException {
+        // check if debugjs
+        debugjs = System.getProperty("debugjs") != null || Boolean.valueOf(getServletConfig().getInitParameter("debugjs"));
+        if (debugjs) {
+            debugger.get();
+        }
+
+        // get datasource
+        try {
+            InitialContext ic = new InitialContext();
+            String dbname = getServletConfig().getInitParameter("dbname");
+            log.info("Looking up jndi db: " + dbname);
+            dataSource = (DataSource) ic.lookup(dbname);
+            // test
+            Connection dbconn = dataSource.getConnection();
+            dbconn.close();
+        } catch (Exception e) {
+            log.error("Error getting dbconn", e);
+            throw new ServletException("Error getting dbconn", e);
+        }
+
+        DB db = null;
         try {
             CirrusScope scope = localScope.get();
+            db = new DB(scope, dataSource);
+            scope.put("DB", scope, db);
             scope.load("/WEB-INF/db/migrate.js");
         } catch (Exception e) {
             log.error("Error migrating db", e);
             throw new ServletException("Error migrating db", e);
+        } finally {
+            if (db != null) {
+                db.close();
+            }
         }
     }
 
@@ -84,28 +136,24 @@ public class CirrusServlet extends HttpServlet {
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
         try {
             CirrusScope scope = localScope.get();
+            if (debugjs) {
+                debugger.get();
+            }
+
             if (scope.load("/WEB-INF/app/cirrus.js")) {
-                NativeObject publicFiles = new NativeObject();
+                NativeObject publicRoot = new NativeObject();
                 for (File f : new File(getServletContext().getRealPath("/WEB-INF/public")).listFiles()) {
                     log.info("public: " + f.getName() + (f.isDirectory() ? " : dir" : " : file"));
-                    publicFiles.put(f.getName(), publicFiles, true);
+                    publicRoot.put(f.getName(), publicRoot, true);
                 }
-                scope.put("publicFiles", scope, publicFiles);
+                scope.put("PUBLIC_ROOT", scope, publicRoot);
             }
-
-            // parse path to find which js servlet to dispatch to
-            String path = (String) req.getAttribute("javax.servlet.include.servlet_path");
-            if (path == null) {
-                path = ((HttpServletRequest)req).getServletPath();
-                if (path == null || path.length() == 0) {
-                    // Servlet 2.1 puts the path of an extension-matched servlet in PathInfo.
-                    path = ((HttpServletRequest)req).getPathInfo();
-                }
-            }
+            String path = ((HttpServletRequest)req).getRequestURI();
             scope.put("path", scope, path);
             scope.put("method", scope, ((HttpServletRequest) req).getMethod());
-
+            // put params in native JS object
             NativeObject params = new NativeObject();
+            ScriptRuntime.setObjectProtoAndParent(params, scope);
             for (Enumeration<String> en = req.getParameterNames(); en.hasMoreElements();) {
                 String key = en.nextElement();
                 params.put(key, params, req.getParameter(key));
@@ -114,13 +162,20 @@ public class CirrusServlet extends HttpServlet {
             scope.put("req", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
             scope.put("res", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
 
-            Function cirrus = (Function) scope.get("cirrus", scope);
+            // set up DB
+            DB db = new DB(scope, dataSource);
+            scope.put("DB", scope, db);
+
             Context cx = Context.enter();
+
             try {
-            	cx.setOptimizationLevel(9);
-                cirrus.call(cx, scope, scope, new Object[] {req, res});
+                Function cirrus = (Function) scope.get("cirrus", scope);
+                //cx.setOptimizationLevel(9);
+                cirrus.call(cx, scope, scope, new Object[0]);
             } finally {
                 Context.exit();
+                // close DB
+                db.close();
                 scope.delete("req");
                 scope.delete("res");
             }

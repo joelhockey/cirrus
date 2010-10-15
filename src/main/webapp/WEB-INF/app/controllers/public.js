@@ -23,37 +23,41 @@
  */
 
 CONTROLLERS["public"] = {
-    getLastModified: function (req) {
-	    return fileLastModified(this.getPublicPath(req));
-	},
+    publicPath: null,
+    before: function () {
+	    // default file for '/' is 'index.html'
+	    if (pathdirs.length === 0) {
+	    	pathdirs = ["index"];
+	    }
+	    // add '.html' suffix if no file type given
+	    if (pathdirs[pathdirs.length - 1].lastIndexOf(".") == -1) {
+	        pathdirs[pathdirs.length - 1] += ".html";
+	    }
+	    this.publicPath = "/WEB-INF/public/" + pathdirs.join("/");
+    },
 
-	get: function (req, res) {
-		try {
-			readFile(this.getPublicPath(req), res.getOutputStream());
-		} catch (e) {
-			// file not found
-			res.setStatus(404);
+    getLastModified: function () {
+	    return fileLastModified(this.publicPath);
+	},
+	
+	GET: {
+	    index: function() {
+	        res.sendRedirect("/login");
+	    },
+		$: function () {
+			try {
+				// set Content-Type
+				var fileSuffix = this.publicPath.substring(this.publicPath.lastIndexOf(".") + 1);
+				var contentType = MIME_TYPES[fileSuffix];
+				if (contentType) {
+					res.setContentType(contentType);
+				}
+				log("using Content-Type: " + contentType + ", for file: " + this.publicPath);
+				readFile(this.publicPath, res.getOutputStream());
+			} catch (e) {
+				logwarn("error sending static file: " + this.publicPath, e);
+				throw 404;
+			}
 		}
-    },
-    
-    getPublicPath: function (req) {
-        var publicPath = req.getAttribute("com.joelhockey.cirrus.public_path");
-        if (publicPath) { return publicPath; }
-        var dirs = pathdirs;
-        // default file for '/' is 'index.html'
-        if (!dirs[0]) {
-        	dirs = ["index.html"];
-        }
-        // add '.html' suffix if no file type given
-        if (dirs[dirs.length - 1].indexOf(".") == -1) {
-        	dirs[dirs.length -1] += ".html";
-        }
-        var publicPath = "/WEB-INF/public/" + dirs.join("/");
-        req.setAttribute("com.joelhockey.cirrus.public_path", publicPath);
-        return publicPath;
-    },
-    
-    index: function (req, res) {
-        jst();
-    },
+    }
 };

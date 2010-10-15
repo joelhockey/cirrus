@@ -30,7 +30,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 public class StatementResultSet {
-    Log log = LogFactory.getLog(StatementResultSet.class);
+    private static final Log log = LogFactory.getLog(StatementResultSet.class);
     private Statement stmt;
     private ResultSet rs;
     public StatementResultSet(Statement stmt, ResultSet rs) {
@@ -40,6 +40,15 @@ public class StatementResultSet {
     public Statement getStatement() { return stmt; }
     public ResultSet getResultSet() { return rs; }
     public void close() {
+        close(stmt, rs);
+    }
+
+    /**
+     * Close statement and result set if not null. Ignore any exceptions
+     * @param stmt statement or null
+     * @param rs result set or null
+     */
+    public static void close(Statement stmt, ResultSet rs) {
         if (rs != null) {
             try {
                 rs.close();

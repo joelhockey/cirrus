@@ -46,6 +46,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
 import org.mozilla.javascript.JavaScriptException;
+import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
@@ -64,15 +65,14 @@ public class CirrusScope extends ImporterTopLevel {
     private static final long serialVersionUID = 0xDC7C4EC5275394BL;
     private static final Log log = LogFactory.getLog(CirrusScope.class);
     public static final long RELOAD_WAIT = 3000;
+
     private ServletConfig sconf;
     private Map<String, CacheEntry> fileCache = new HashMap<String, CacheEntry>();
     private Map<String, CacheEntry> templateCache = new HashMap<String, CacheEntry>();
     private Map<String, CacheEntry> lastModCache = new HashMap<String, CacheEntry>();
 
     /**
-     * Create CirrusScope instance.  Adds methods {@link #load(String)},
-     * {@link #parseFile(String)}, {@link #readFile(String)}, {@link #print(Context, Scriptable, Object[], Function)},
-     * {@link #template(String)} to scope, and also add commons-logger 'log' var.
+     * Create CirrusScope instance.  Adds various global methods.
      * @param cx context
      * @param sconf servlet config used for looking real paths from URL paths
      */
@@ -83,6 +83,10 @@ public class CirrusScope extends ImporterTopLevel {
             "fileLastModified",
             "jst",
             "load",
+            "log",
+            "logf",
+            "logwarn",
+            "logerror",
             "parseFile",
             "print",
             "printf",
@@ -157,16 +161,23 @@ public class CirrusScope extends ImporterTopLevel {
         Context cx = Context.enter();
         try {
             Object obj = cx.evaluateReader(this, reader, fullpath, 1, null);
-            reader.close();
             fileCache.put(fullpath, new CacheEntry(fullpath, file.lastModified(), System.currentTimeMillis(), obj));
             return true;
         } finally {
             Context.exit();
+            reader.close();
         }
     }
 
+    /**
+     * Read file.  2nd arg is optional stream for reading into.  If not supplied return string result.
+     * @param path file to read
+     * @param objOuts optional output stream
+     * @return string result if no output stream supplied else null
+     * @throws IOException if error reading
+     */
     public String readFile(String path, Object objOuts) throws IOException {
-        if (objOuts == null || objOuts instanceof Undefined) {
+        if (objOuts == null || objOuts == Undefined.instance) {
             log.info("readFile: " + path);
             return readFile(path);
         } else {
@@ -199,36 +210,115 @@ public class CirrusScope extends ImporterTopLevel {
         }
     }
 
-    /**
-     * Print objects to sysout.  Better to use commons-logging var 'log'.
-     * @param cx javascript context
-     * @param thisObj scope - ignored
-     * @param args args to print
-     * @param funObj function - ignored
-     */
+    /** Print objects to log */
     public static void print(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        StringBuilder sb = new StringBuilder();
-        String sep = "";
-        for (int i=0; i < args.length; i++) {
-            sb.append(sep);
-            sep = " ";
-            sb.append(Context.toString(args[i]));
+        log.info(dump(args));
+    }
+    /** printf to log */
+    public static void printf(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        log.info(printf(args));
+    }
+    /** Print objects to log */
+    public static void log(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        log.info(dump(args));
+    }
+    /** printf to log */
+    public static void logf(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        log.info(printf(args));
+    }
+    /** Print objects to log */
+    public static void logwarn(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        log.warn(dump(args));
+    }
+    /** Print objects to log */
+    public static void logerror(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        log.error(dump(args));
+    }
+
+    private static String printf(Object[] args) {
+        if (args == null) return null;
+        String fstr = (String) args[0];
+        fstr = fstr.replace("%d", "%.0f"); // all numbers will be doubles, so convert here
+        Object[] fargs = new Object[args.length - 1];
+        System.arraycopy(args, 1, fargs, 0, fargs.length);
+        return String.format(fstr, fargs);
+    }
+
+    public static String dump(Object[] args) {
+        if (args == null) return null;
+        if (args.length == 1) {
+            if (args[0] instanceof String) {
+                return (String) args[0];
+            } else {
+                return RhinoJSON.stringify(args[0]);
+            }
         }
-        log.info(sb);
+        NativeArray array = new NativeArray(args);
+        return RhinoJSON.stringify(array);
     }
 
     /**
-     * printf.
-     * @param cx javascript context - ignored
-     * @param thisObj scope - ignored
-     * @param args first value is printf format string, other args get substituted
-     * @param funObj function - ignored
-     * @return printf result
+     * Render specified JST template.  Optional parameters are ctlr, action and context.
+     * If not specified, ctlr uses global variable 'controller', action uses global 'action'
+     * and context uses the global scope (this).
+     * @param args is either [], [action], [context], [action, context], [ctlr, action], [ctlr, action, context]
+     * @throws IOException if error loading template
      */
-    public static String printf(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        Object[] formatArgs = new Object[args.length - 1];
-        System.arraycopy(args, 1, formatArgs, 0, formatArgs.length);
-        return String.format(args[0].toString(), formatArgs);
+    public void jst(Object arg1, Object arg2, Object arg3) throws IOException {
+        // shift all args to the right until we get a string in arg2
+        // then arg1=ctlr, arg2=action, arg3=cx
+        for (int i = 0; i < 2; i++) {
+            if (!(arg2 instanceof String)) {
+                arg3 = arg2;
+                arg2 = arg1;
+                arg1 = Undefined.instance; // bears in the bed - they all roll over and one falls out
+            }
+        }
+        String controller = (String) (arg1 == Undefined.instance ? get("controller", this) : arg1);
+        String action = (String) (arg2 == Undefined.instance ? get("action", this) : arg2);
+        Object context = arg3 == Undefined.instance ? this : arg3;
+
+        // reload 'jst.js' if changed
+        if (load("/WEB-INF/app/jst.js")) {
+            templateCache.clear();
+        }
+
+        String path = "/WEB-INF/app/views/" + controller + "/" + action + ".jst";
+
+        // get template from cache
+        String rpath = sconf.getServletContext().getRealPath(path);
+        if (rpath == null) {
+            throw new IOException("Could not load jst template for controller: [" + controller + "], view: ["
+                    + action + "] at path: [" + path + "]");
+        }
+
+        NativeObject template = null;
+        CacheEntry entry = templateCache.get(rpath);
+        long now = System.currentTimeMillis();
+        if (entry != null) {
+            if (entry.lastChecked + RELOAD_WAIT > now) {
+                template = (NativeObject) entry.object;
+            } else if (new File(rpath).lastModified() == entry.lastModified) {
+                entry.lastChecked = now;
+                template = (NativeObject) entry.object;
+            }
+        }
+
+        HttpServletResponse res = (HttpServletResponse) ((NativeJavaObject) get("res", this)).unwrap();
+        res.setContentType("text/html");
+        Context cx = Context.enter();
+        try {
+            // load template now if not already loaded
+            if (template == null) {
+                template = loadjst(controller + "." + action);
+                entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
+                templateCache.put(rpath, entry);
+            }
+            ScriptableObject.callMethod(cx, template, "render",
+                    new Object[] {Context.javaToJS(res.getWriter(), template), context});
+        } finally {
+            Context.exit();
+        }
     }
 
     private NativeObject loadjst(String name) throws IOException {
@@ -263,60 +353,11 @@ public class CirrusScope extends ImporterTopLevel {
             cx.evaluateString(this, source, "views/" + name + ".js", 1, null);
             ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
             Function f = (Function) templates.get(name, templates);
-            return (NativeObject) f.construct(cx, this, null);
+            return (NativeObject) f.construct(cx, this, new Object[0]);
         } catch (JavaScriptException jse) {
-        	IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
-        	ioe.initCause(jse);
-        	throw ioe;
-        } finally {
-            Context.exit();
-        }
-    }
-
-    /**
-     * Uses 'controller' and 'view' variables already in scope to lookup template
-     * unless specific path is provided.
-     * @param path optional path to override controller and view
-     * @throws IOException if error loading template
-     */
-    public void jst(Object context) throws IOException {
-        // reload 'jst.js' if changed
-        if (load("/WEB-INF/app/jst.js")) {
-            templateCache.clear();
-        }
-        // controller and view used to look up view
-        String controller = (String) get("controller", this);
-        String action = (String) get("action", this);
-        HttpServletResponse res = (HttpServletResponse) ((NativeJavaObject) get("res", this)).unwrap();
-        String path = "/WEB-INF/app/views/" + controller + "/" + action + ".jst";
-
-        // get template from cache
-        String rpath = sconf.getServletContext().getRealPath(path);
-        if (rpath == null) {
-            throw new IOException("Could not load jst template for controller: [" + controller + "], view: ["
-                    + action + "] at path: [" + path + "]");
-        }
-        NativeObject template = null;
-        CacheEntry entry = templateCache.get(rpath);
-        long now = System.currentTimeMillis();
-        if (entry != null) {
-            if (entry.lastChecked + RELOAD_WAIT > now) {
-                template = (NativeObject) entry.object;
-            } else if (new File(rpath).lastModified() == entry.lastModified) {
-                entry.lastChecked = now;
-                template = (NativeObject) entry.object;
-            }
-        }
-        Context cx = Context.enter();
-        try {
-            // load template now if not already loaded
-            if (template == null) {
-                template = loadjst(controller + "." + action);
-                entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
-                templateCache.put(rpath, entry);
-            }
-            ScriptableObject.callMethod(cx, template, "render",
-                    new Object[] {Context.javaToJS(res.getWriter(), template), context});
+                IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
+                ioe.initCause(jse);
+                throw ioe;
         } finally {
             Context.exit();
         }

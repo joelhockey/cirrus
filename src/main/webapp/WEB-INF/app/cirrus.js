@@ -22,121 +22,108 @@
  * THE SOFTWARE.
  */
 
-// GLOBAL objects
-var CONTROLLERS = {};
-var DATASOURCE = new javax.naming.InitialContext().lookup("jdbc/deuce");
-var DB = com.joelhockey.cirrus.DB;
-var JSON = com.joelhockey.cirrus.RhinoJSON;
-var LIB = {};
-var log = org.apache.commons.logging.LogFactory.getLog("com.joelhockey.cirrus.js");
-
+var JSON = new com.joelhockey.cirrus.RhinoJSON(global());
+var CONTROLLERS = CONTROLLERS || {};
+var LIB = LIB || {};
+var MODELS = MODELS || {};
+var MIME_TYPES = {
+        css: "text/css",
+        html: "text/html",
+        ico: "application/x-icon",
+        js: "application/x-javascript",
+        jpeg: "image/jpeg",
+        wsdl: "text/xml",
+        xml: "text/xml",
+        xsd: "text/xml",
+};
 
 // variables already injected into global namespace by CirrusServlet:
-// * params - NativeObject with params
-// * publicFiles - NativeObject with public directories
-// * path - String
 // * method - String
+// * path - String
+// * params - NativeObject with params
+// * PUBLIC_ROOT - NativeObject with files, dirs in root of public dir.
 // This method adds strings: pathdirs, controller, action
-function cirrus(req, res) {
-    // private object - prototype for all controllers
-    var ControllerPrototype = {
-        getLastModified : function(req) { return -1; },
-        before : function(req, res) { return true; },
-        after : function(req, res) {},
-        options : function(req, res) {
-            res.addHeader("Allow", [m.toUpperCase() for each (m in "options,get,head,post,put,delete,trace".split(",")) if (this[m])].join(", "));
-        },
-        trace : function(req, res) {
-            var body = "TRACE " + req.getRequestURI() + " " + req.getProtocol() + "\r\n" +
-                [key + ": " + params[key] for each (key in params)].join("\r\n")
-            res.setContentType("message/http");
-            resp.setContentLength(body.length);
-            res.getWriter().write(body);
-        }
-    };
-
-    // private helper function
-    var getController = function (controller) {
-        var ctlr = CONTROLLERS[controller];
-        try {
-            if (load("/WEB-INF/app/controllers/" + controller + ".js")) {
-                ctlr = CONTROLLERS[controller];
-                // copy ControllerPrototype functions
-                for (var f in ControllerPrototype) {
-                    if (typeof ctlr[f] === "undefined") {
-                        ctlr[f] = ControllerPrototype[f];
-                    }
-                }
-            }
-        } catch (e) { /* ignore */ }
-        return ctlr;
-    };
-
-
-	// put variables 'action', 'pathdirs', 'controller', in global scope
-	// to allow access from template
-    action = null;
-    pathdirs = path.split("/");
-    controller = pathdirs[0];
-    if (!controller) {
-    	pathdirs.shift();
-    	controller = pathdirs[0];
-    }
-    action = pathdirs[1]
-    if (!action) {
-    	action = "index";
-    }
-    if (!controller || publicFiles[controller]) {
+var cirrus = function() {
+    // put variables 'flash', 'pathdirs', 'controller', 'action' in global scope
+    flash = {};
+    pathdirs = path.substring(1).split("/");
+    controller = pathdirs[0] || "public";
+    var ctlr = CONTROLLERS[controller];
+    action = pathdirs[1] || "index";
+    if (PUBLIC_ROOT[controller]) {
         // use pub controller for any public files
-        log.debug("using public controller for " + path);
+        log("using public controller for " + path);
         controller = "public";
+        action = null;
     }
 
-    log.debug("controller: " + controller + ", action: " + action + ", path: " + path);
-    var ctlr = getController(controller);
-    if (!ctlr) {
-        log.warn("no controller defined for path: " + path);
-    	res.setStatus(404);
-    	return;
+    logf("method.controller.action: %s.%s.%s, path: %s", method, controller, action, path);
+    var ctlr = CONTROLLERS[controller];
+    try {
+        if (load("/WEB-INF/app/controllers/" + controller + ".js")) {
+            ctlr = CONTROLLERS[controller];
+        }
+    } catch (e) {
+    	logerror("error loading controller: " + controller + ", path: " + path, e);
     }
 
-    if (!ctlr.before(req, res)) {
-    	// before stopped processing
-    	return;
-    }
+    try {
+        if (!ctlr) {
+            logwarn("warning, no controller defined for path: " + path);
+            throw 404;
+        }
+
+        // call before
+        if (ctlr.before && ctlr.before() === false) {
+            return;
+        }
     
-    // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
-    if (method == "GET") {
-    	var pageLastMod = ctlr.getLastModified(req)
-    	if (pageLastMod >= 0) {
-            if (pageLastMod - req.getDateHeader("If-Modified-Since") < 1000) {
-                res.setStatus(304);
-                return; // early exit
-            } else {
-            	if (!res.containsHeader("Last-Modified") && pageLastMod >= 0) {
-            		res.setDateHeader("Last-Modified", pageLastMod)
-            	}
-            }
-        }    	
-    }
-
-    // check controller for function matching 'action'
-    var f = ctlr[action];
-    if (f instanceof Function) {
-        log.debug("found action " + action + " in controller " + controller);
-    	f.call(ctlr, req, res);
-    	
-    // else fall back on function from HTTP method
-    } else {
-    	f = ctlr[method.toLowerCase()]
-    	if (f instanceof Function) {
-    		f.call(ctlr, req, res);
-    	} else {
+        // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
+        if (method === "GET" && ctlr.getLastModified) {
+        	var pageLastMod = ctlr.getLastModified()
+        	if (pageLastMod >= 0) {
+                if (pageLastMod - req.getDateHeader("If-Modified-Since") < 1000) {
+                    res.setStatus(304);
+                    return; // early exit
+                } else {
+                	if (!res.containsHeader("Last-Modified") && pageLastMod >= 0) {
+                		res.setDateHeader("Last-Modified", pageLastMod)
+                	}
+                }
+            }    	
+        }
+    
+        // find method handler or 405
+        var methodHandler = ctlr[method] || ctlr.$;
+        if (methodHandler) {
+        	var actionHandler = methodHandler[action] || methodHandler.$;
+        	var args = pathdirs.slice(2);
+        	if (actionHandler instanceof Function && actionHandler.arity === args.length) {
+        		actionHandler.apply(ctlr, pathdirs.slice(2));
+        	} else {
+        		logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
+        		throw 404;
+        	}
+        } else {
     		// return 405 Method Not Allowed
-    		res.setStatus(405);
-    		res.addHeader("Allow", [m.toUpperCase() for each (m in "options,get,head,post,put,delete,trace".split(",")) if (ctlr[m])].join(", "));
+    		logwarn("warning, no method handler for path: " + path);
+    		res.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
+    		throw 405;
+        }
+        
+    // error - set status and use error templates
+    } catch (e) {
+    	var status = 500;
+    	if (typeof e === "number") {
+    		status = e;
+    	} else {
+    		logerror("internal server error", e);
     	}
+		res.setStatus(status);
+		if (status >= 400) { // only show error page for 4xx, 5xx
+		    jst("errors", String(status));
+		}
+    } finally {
+    	ctlr && ctlr.after && ctlr.after();
     }
-    
-    ctlr.after(req, res);
 }
