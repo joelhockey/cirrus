@@ -68,6 +68,7 @@ import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.*;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,6 +79,7 @@ import java.util.EventObject;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Properties;
+import java.util.Set;
 import java.io.*;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
@@ -717,10 +719,10 @@ public class SwingGui extends JFrame implements GuiCallback {
                 setExtendedState(Frame.NORMAL);
             }
             toFront();
-            context.enable();
+            context.setEnabled(true);
         } else {
             if (currentWindow != null) currentWindow.setPosition(-1);
-            context.disable();
+            context.setEnabled(false);
         }
     }
 
@@ -1426,7 +1428,6 @@ class FileTextArea
      * The popup menu.
      */
     private FilePopupMenu popup;
-    private int[] fileStartOffsets;
 
     /**
      * Creates a new FileTextArea.
@@ -1945,7 +1946,7 @@ class FileHeader extends JPanel implements MouseListener {
         setFont(font);
         FontMetrics metrics = getFontMetrics(font);
         int h = metrics.getHeight();
-        int lineCount = fileWindow.getLineCount();
+        int lineCount = fileWindow.getLineCount() + 1;
         String dummy = Integer.toString(lineCount);
         if (dummy.length() < 2) {
             dummy = "99";
@@ -2075,6 +2076,80 @@ class FileHeader extends JPanel implements MouseListener {
  * An internal frame for script files.
  */
 class FileWindow extends JInternalFrame implements ActionListener {
+    private static Set<String> KEYWORDS = new HashSet<String>(Arrays.asList(
+            new String[] {
+                "abstract",
+                "boolean",
+                "break",
+                "byte",
+                "case",
+                "catch",
+                "char",
+                "class",
+                "const",
+                "continue",
+                "debugger",
+                "default",
+                "delete",
+                "do",
+                "double",
+                "else",
+                "enum",
+                "export",
+                "extends",
+                "false",
+                "final",
+                "finally",
+                "float",
+                "for",
+                "function",
+                "goto",
+                "if",
+                "implements",
+                "import",
+                "in",
+                "instanceof",
+                "int",
+                "interface",
+                "long",
+                "native",
+                "new",
+                "null",
+                "package",
+                "private",
+                "protected",
+                "public",
+                "return",
+                "short",
+                "static",
+                "super",
+                "switch",
+                "synchronized",
+                "this",
+                "throw",
+                "throws",
+                "transient",
+                "true",
+                "try",
+                "typeof",
+                "var",
+                "void",
+                "volatile",
+                "while",
+                "with"
+            }));
+    private static final SimpleAttributeSet KEYWORD = new SimpleAttributeSet();
+    private static final SimpleAttributeSet JAVADOC = new SimpleAttributeSet();
+    private static final SimpleAttributeSet COMMENT = new SimpleAttributeSet();
+    private static final SimpleAttributeSet QUOTED = new SimpleAttributeSet();
+
+    static {
+        // use same color scheme as eclipse
+        StyleConstants.setForeground(KEYWORD, new Color(127, 0, 85));
+        StyleConstants.setForeground(JAVADOC, new Color(63, 95, 191));
+        StyleConstants.setForeground(COMMENT, new Color(63, 127, 125));
+        StyleConstants.setForeground(QUOTED, new Color(42, 0, 255));
+    }
 
     /**
      * Serializable magic number.
@@ -2111,7 +2186,15 @@ class FileWindow extends JInternalFrame implements ActionListener {
      */
     int currentPos;
 
-    private int[] lineStartOffsets = {};
+    /**
+     * Offsets for start of each line in {@link #textArea}.
+     */
+    private int[] lineStartOffsets = new int[16];
+
+    /**
+     *  Number of lines.
+     */
+    private int lineCount = 0;
 
     /**
      * Loads the file.
@@ -2130,23 +2213,16 @@ class FileWindow extends JInternalFrame implements ActionListener {
      * Returns the offset position for the given line.
      */
     public int getLineStartOffset(int line) {
-//        try {
-//            return textArea.getLineStartOffset(line);
-//        } catch (BadLocationException ble) {
-//            return -1;
-//        }
-        return line >= 0 && line < lineStartOffsets.length ? lineStartOffsets[line] : -1;
+        if (line >= 0 && line < lineStartOffsets.length) {
+            return lineStartOffsets[line];
+        } else {
+            return -1;
+        }
     }
     public int getLineCount() {
-//        return textArea.getLineCount();
         return lineStartOffsets.length;
     }
     public int getLineOfOffset(int offset) {
-//        try {
-//            return textArea.getLineOfOffset(offset);
-//        } catch (BadLocationException ble) {
-//            return 0;
-//        }
         int i = 0;
         while (i < lineStartOffsets.length && offset < lineStartOffsets[i++]);
         return i + 1;
@@ -2205,8 +2281,6 @@ class FileWindow extends JInternalFrame implements ActionListener {
         updateToolTip();
         currentPos = -1;
         textArea = new FileTextArea(this);
-//        textArea.setRows(24);
-//        textArea.setColumns(80);
         p = new JScrollPane();
         fileHeader = new FileHeader(this);
         p.setViewportView(textArea);
@@ -2257,18 +2331,92 @@ class FileWindow extends JInternalFrame implements ActionListener {
             }
             textArea.select(pos);
 
-            // re-calculate lineOffsets
-            String[] lines = newText.split("\r?\n");
-            lineStartOffsets = new int[lines.length];
+            // re-calculate lineOffsets (must normalize linesep)
+            lineCount = 1;
             int offset = 0;
-            for (int i = 0; i < lines.length; i++) {
-                lineStartOffsets[i] = offset;
-                offset += lines[i].length() + 1;
+            for (int i = 0; i < newText.length(); i++) {
+                char c = newText.charAt(i);
+                // treat CRLF as single char
+                if (c == '\n' && i > 1 && newText.charAt(i - 1) == '\r') {
+                    continue;
+                }
+                offset++;
+                if (c == '\r' || c == '\n') {
+                    // resize if needed
+                    if (lineCount == lineStartOffsets.length) {
+                        int[] tmp = new int[lineStartOffsets.length * 2];
+                        System.arraycopy(lineStartOffsets, 0,
+                                tmp, 0, lineStartOffsets.length);
+                        lineStartOffsets = tmp;
+                    }
+                    lineStartOffsets[lineCount++] = offset;
+                }
             }
+            hilight();
         }
         fileHeader.update();
         fileHeader.repaint();
     }
+
+    /**
+     * Apply syntax higlight to @link {@link #textArea}
+     */
+    private void hilight() {
+        StyledDocument doc = textArea.getStyledDocument();
+        String text = "";
+        try {
+            text = doc.getText(0, doc.getLength());
+        } catch (BadLocationException e) {}
+        // parse JS and set colours
+        int pos = 0;
+        while (pos < text.length()) {
+            char c = text.charAt(pos);
+            SimpleAttributeSet style;
+            int start = pos;
+            if (Character.isJavaIdentifierStart(c)) {
+                // read rest of identifier
+                while (++pos < text.length()
+                        && Character.isJavaIdentifierPart(text.charAt(pos)));
+                String word = text.substring(start, pos);
+                if (!KEYWORDS.contains(word)) {
+                    continue;
+                }
+                style = KEYWORD;
+
+            // block comment (or javadoc)
+            } else if (text.regionMatches(pos, "/*", 0, 2)) {
+                style = COMMENT;
+                if (pos < text.length() - 3 && text.charAt(pos + 2) == '*'
+                        && text.charAt(pos + 3) != '/') {
+                    style = JAVADOC; // '/**' but not '/**/'
+                }
+                // move to end of '*/' or end of string if comment not closed
+                pos = text.indexOf("*/", pos);
+                pos = pos == -1 ? text.length() : pos + 2;
+
+            // line comment
+            } else if (text.regionMatches(pos, "//", 0, 2)) {
+                style = COMMENT;
+                // move to end of line or end of doc
+                while (++pos < text.length() && text.charAt(pos) != '\r'
+                    && text.charAt(pos) != '\n');
+            } else if (c == '\"' || c == '\'') {
+                style = QUOTED;
+                int q = c; // match either single or double quote
+                pos++; // skip first quote
+                while (pos < text.length() && (c = text.charAt(pos++)) != q) {
+                    if (c == '\\') pos++; // skip any escaped quotes
+                }
+            } else {
+                pos++;
+                continue;
+            }
+
+            // apply style
+            doc.setCharacterAttributes(start, pos - start, style, false);
+        }
+    }
+
 
     /**
      * Sets the cursor position.
@@ -3143,31 +3291,19 @@ class ContextWindow extends JPanel implements ActionListener {
             });
         t1.addComponentListener(clistener);
         t2.addComponentListener(clistener);
-        disable();
+        setEnabled(false);
     }
 
     /**
-     * Disables the component.
+     * Enables or disables the component.
      */
     @Override
-    public void disable() {
-        context.setEnabled(false);
-        thisTable.setEnabled(false);
-        localsTable.setEnabled(false);
-        evaluator.setEnabled(false);
-        cmdLine.setEnabled(false);
-    }
-
-    /**
-     * Enables the component.
-     */
-    @Override
-    public void enable() {
-        context.setEnabled(true);
-        thisTable.setEnabled(true);
-        localsTable.setEnabled(true);
-        evaluator.setEnabled(true);
-        cmdLine.setEnabled(true);
+    public void setEnabled(boolean enabled) {
+        context.setEnabled(enabled);
+        thisTable.setEnabled(enabled);
+        localsTable.setEnabled(enabled);
+        evaluator.setEnabled(enabled);
+        cmdLine.setEnabled(enabled);
     }
 
     /**
