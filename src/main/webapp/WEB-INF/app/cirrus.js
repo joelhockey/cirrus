@@ -64,7 +64,7 @@ var cirrus = function() {
             ctlr = CONTROLLERS[controller];
         }
     } catch (e) {
-    	logerror("error loading controller: " + controller + ", path: " + path, e);
+        logerror("error loading controller: " + controller + ", path: " + path, e);
     }
 
     try {
@@ -80,50 +80,50 @@ var cirrus = function() {
     
         // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
         if (method === "GET" && ctlr.getLastModified) {
-        	var pageLastMod = ctlr.getLastModified()
-        	if (pageLastMod >= 0) {
+            var pageLastMod = ctlr.getLastModified()
+            if (pageLastMod >= 0) {
                 if (pageLastMod - req.getDateHeader("If-Modified-Since") < 1000) {
                     res.setStatus(304);
                     return; // early exit
                 } else {
-                	if (!res.containsHeader("Last-Modified") && pageLastMod >= 0) {
-                		res.setDateHeader("Last-Modified", pageLastMod)
-                	}
+                    if (!res.containsHeader("Last-Modified") && pageLastMod >= 0) {
+                        res.setDateHeader("Last-Modified", pageLastMod)
+                    }
                 }
-            }    	
+            }        
         }
     
         // find method handler or 405
         var methodHandler = ctlr[method] || ctlr.$;
         if (methodHandler) {
-        	var actionHandler = methodHandler[action] || methodHandler.$;
-        	var args = pathdirs.slice(2);
-        	if (actionHandler instanceof Function && actionHandler.arity === args.length) {
-        		actionHandler.apply(ctlr, pathdirs.slice(2));
-        	} else {
-        		logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
-        		throw 404;
-        	}
+            var actionHandler = methodHandler[action] || methodHandler.$;
+            var args = pathdirs.slice(2);
+            if (actionHandler instanceof Function && actionHandler.arity === args.length) {
+                actionHandler.apply(ctlr, pathdirs.slice(2));
+            } else {
+                logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
+                throw 404;
+            }
         } else {
-    		// return 405 Method Not Allowed
-    		logwarn("warning, no method handler for path: " + path);
-    		res.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
-    		throw 405;
+            // return 405 Method Not Allowed
+            logwarn("warning, no method handler for path: " + path);
+            res.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
+            throw 405;
         }
         
     // error - set status and use error templates
     } catch (e) {
-    	var status = 500;
-    	if (typeof e === "number") {
-    		status = e;
-    	} else {
-    		logerror("internal server error", e);
-    	}
-		res.setStatus(status);
-		if (status >= 400) { // only show error page for 4xx, 5xx
-		    jst("errors", String(status));
-		}
+        var status = 500;
+        if (typeof e === "number") {
+            status = e;
+        } else {
+            logerror("internal server error", e);
+        }
+        res.setStatus(status);
+        if (status >= 400) { // only show error page for 4xx, 5xx
+            jst("errors", String(status));
+        }
     } finally {
-    	ctlr && ctlr.after && ctlr.after();
+        ctlr && ctlr.after && ctlr.after();
     }
 }
