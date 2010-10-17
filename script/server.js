@@ -14,7 +14,7 @@ connector.setPort(8080);
 server.setConnectors([connector]);
 webapp = new org.mortbay.jetty.webapp.WebAppContext();
 webapp.setContextPath("/");
-webapp.setWar("./src/main/webapp");
+webapp.setWar("src/main/webapp");
 webapp.setTempDirectory(tmpdir);
 var classLoader = new org.mortbay.jetty.webapp.WebAppClassLoader(webapp);
 classLoader.addClassPath("target/classes");
@@ -35,4 +35,8 @@ ds.setUser("sa");
 var resource = new org.mortbay.jetty.plus.naming.Resource("jdbc/cirrus", ds);
 
 server.start();
+if (java.lang.System.getProperty("debugjs")) {
+    print("detected debug mode, using single-thread");
+    server.getThreadPool().setMaxThreads(2); // useful when debugging
+}
 server.join();
