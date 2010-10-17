@@ -36,8 +36,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -76,7 +74,6 @@ public class CirrusServlet extends HttpServlet {
         protected Main initialValue() {
 //          try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
             Main main = new Main("Cirrus Debug " + Thread.currentThread().getName());
-//            main.doBreak();
             main.setScope(localScope.get());
             main.attachTo(ContextFactory.getGlobal());
             main.pack();
