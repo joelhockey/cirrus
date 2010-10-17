@@ -57,4 +57,5 @@ public class MockServletContext implements ServletContext {
     public void log(String arg0, Throwable arg1) { throw new UnsupportedOperationException(); }
     public void removeAttribute(String arg0) { throw new UnsupportedOperationException(); }
     public void setAttribute(String arg0, Object arg1) { throw new UnsupportedOperationException(); }
+    public String getContextPath() { throw new UnsupportedOperationException(); }
 }
