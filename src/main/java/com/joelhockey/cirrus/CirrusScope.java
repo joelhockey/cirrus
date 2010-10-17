@@ -129,39 +129,39 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if error reading file
      */
     public boolean load(String path) throws IOException {
-        String rpath = sconf.getServletContext().getRealPath(path);
-        CacheEntry entry = fileCache.get(rpath);
+        String realPath = sconf.getServletContext().getRealPath(path);
+        CacheEntry entry = fileCache.get(realPath);
         long now = System.currentTimeMillis();
         if (entry != null) {
             if (entry.lastChecked + RELOAD_WAIT > now) {
                 return false;
-            } else if (new File(rpath).lastModified() == entry.lastModified) {
+            } else if (new File(realPath).lastModified() == entry.lastModified) {
                 entry.lastChecked = now;
                 return false;
             }
         }
-        return parseFile(rpath);
+        return parseFile(realPath);
     }
 
     /**
      * Parse file and put into local cache.
-     * @param fullpath full path to file
+     * @param realPath full path to file
      * @return true if file was (re)loaded, false if no change
      * @throws IOException if error reading file
      */
-    public boolean parseFile(String fullpath) throws IOException {
-        log.info("parsing file: " + fullpath);
-        CacheEntry entry = fileCache.get(fullpath);
-        if (entry != null && new File(fullpath).lastModified() == entry.lastModified) {
-            log.debug("file already parsed: " + fullpath);
+    public boolean parseFile(String realPath) throws IOException {
+        log.info("parsing file: " + realPath);
+        CacheEntry entry = fileCache.get(realPath);
+        if (entry != null && new File(realPath).lastModified() == entry.lastModified) {
+            log.debug("file already parsed: " + realPath);
             return false;
         }
-        File file = new File(fullpath);
+        File file = new File(realPath);
         Reader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
         Context cx = Context.enter();
         try {
-            Object obj = cx.evaluateReader(this, reader, fullpath, 1, null);
-            fileCache.put(fullpath, new CacheEntry(fullpath, file.lastModified(), System.currentTimeMillis(), obj));
+            Object obj = cx.evaluateReader(this, reader, file.toURI().toString(), 1, null);
+            fileCache.put(realPath, new CacheEntry(realPath, file.lastModified(), System.currentTimeMillis(), obj));
             return true;
         } finally {
             Context.exit();
@@ -286,19 +286,19 @@ public class CirrusScope extends ImporterTopLevel {
         String path = "/WEB-INF/app/views/" + controller + "/" + action + ".jst";
 
         // get template from cache
-        String rpath = sconf.getServletContext().getRealPath(path);
-        if (rpath == null) {
+        String realPath = sconf.getServletContext().getRealPath(path);
+        if (realPath == null) {
             throw new IOException("Could not load jst template for controller: [" + controller + "], view: ["
                     + action + "] at path: [" + path + "]");
         }
 
         NativeObject template = null;
-        CacheEntry entry = templateCache.get(rpath);
+        CacheEntry entry = templateCache.get(realPath);
         long now = System.currentTimeMillis();
         if (entry != null) {
             if (entry.lastChecked + RELOAD_WAIT > now) {
                 template = (NativeObject) entry.object;
-            } else if (new File(rpath).lastModified() == entry.lastModified) {
+            } else if (new File(realPath).lastModified() == entry.lastModified) {
                 entry.lastChecked = now;
                 template = (NativeObject) entry.object;
             }
@@ -311,8 +311,8 @@ public class CirrusScope extends ImporterTopLevel {
             // load template now if not already loaded
             if (template == null) {
                 template = loadjst(controller + "." + action);
-                entry = new CacheEntry(rpath, new File(rpath).lastModified(), now, template);
-                templateCache.put(rpath, entry);
+                entry = new CacheEntry(realPath, new File(realPath).lastModified(), now, template);
+                templateCache.put(realPath, entry);
             }
             ScriptableObject.callMethod(cx, template, "render",
                     new Object[] {Context.javaToJS(res.getWriter(), template), context});
@@ -338,10 +338,12 @@ public class CirrusScope extends ImporterTopLevel {
             log.info("JST.parse(" + name + ".jst)");
             String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
             File tempDir = (File) sconf.getServletContext().getAttribute("javax.servlet.context.tempdir");
+            String sourceName = "views/" + name + ".js";
             if (tempDir != null) {
                 File jstDir = new File(tempDir, "jst");
                 jstDir.mkdir();
                 File compiledJstFile = new File(jstDir, name + ".js");
+                sourceName = compiledJstFile.toURI().toString();
                 log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
                 FileOutputStream fos = new FileOutputStream(compiledJstFile);
                 try {
@@ -350,7 +352,7 @@ public class CirrusScope extends ImporterTopLevel {
                     fos.close();
                 }
             }
-            cx.evaluateString(this, source, "views/" + name + ".js", 1, null);
+            cx.evaluateString(this, source, sourceName, 1, null);
             ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
             Function f = (Function) templates.get(name, templates);
             return (NativeObject) f.construct(cx, this, new Object[0]);
