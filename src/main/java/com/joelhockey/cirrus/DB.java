@@ -55,7 +55,6 @@ public class DB {
     private final Log log = LogFactory.getLog(DB.class);
     private static final Object[] EMPTY = null;
     private Scriptable scope;
-    private DataSource dataSource;
     private Connection dbconn;
 
     /**
@@ -66,7 +65,6 @@ public class DB {
      */
     public DB(Scriptable scope, DataSource dataSource) throws SQLException {
         this.scope = scope;
-        this.dataSource = dataSource;
         this.dbconn = dataSource.getConnection();
     }
 

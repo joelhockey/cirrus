@@ -1,3 +1,5 @@
+// Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence.
+
 // anonymous function to keep global scope clean
 (function() {
 
@@ -6,8 +8,6 @@
     var version = 1;
     // ***** 
 
-    // load cirrus
-    load("WEB-INF/app/cirrus.js");
     var dbversion;
     try {
         // get current version from 'db_version' table
@@ -34,20 +34,16 @@
     log("doing db migration.  " + msg);
     
     // look in dir /WEB-INF/db to find required files
-    var dbpath = sconf.getServletContext().getRealPath("/WEB-INF/db");
-    if (dbpath == null) {
-        throw new java.sql.SQLException("No path found for /WEB-INF/db");
+    var files = sconf.getServletContext().getResourcePaths("/WEB-INF/db/");
+    if (!files || files.length === 0) {
+        throw new java.sql.SQLException("No files found in /WEB-INF/db/");
     }
-    var dbdir = new java.io.File(dbpath);
-    if (!dbdir.isDirectory()) {
-        throw new java.sql.SQLException("Could not find dir /WEB-INF/db, got: " + dbdir);
-    }
-    var files = dbdir.list();
     var fileMap = {};
     for (var i = 0; i < files.length; i++) {
         // check for filename format <nnn>_<desc>.sql
-        if (/^\d{3}_.*\.sql$/.test(files[i])) {
-            var filenum = parseInt(files[i].substring(0, 3));
+        var match;
+        if (match = /^\/WEB-INF\/db\/(\d{3})_.*\.sql$/.exec(files[i])) {
+            var filenum = parseInt(match[1]);
             if (filenum > dbversion && filenum <= version) {
                 // check for duplicates
                 if (fileMap[filenum]) {
@@ -57,19 +53,18 @@
             }
         }
     }
-    
     // ensure all files exist
     for (var i = dbversion + 1; i <= version; i++) {
         if (!fileMap[i]) {
             throw new java.sql.SQLException("Migrating from: " + dbversion + " to: " + version + ", missing file: "
-                + i + ", got files: " + fileMap);
+                + i + ", got files: " + JSON.stringify(fileMap));
         }
     }
 
     // run scripts
     for (var i = dbversion + 1; i <= version; i++) {
         log("db migration running script: " + fileMap[i]);
-        var sql = readFile("/WEB-INF/db/" + fileMap[i]);
+        var sql = readFile(fileMap[i]);
         DB.insert("insert into db_version (version, filename, script) values (?, ?, ?)", [i, fileMap[i], sql]);
         DB.execute(sql);
     }
