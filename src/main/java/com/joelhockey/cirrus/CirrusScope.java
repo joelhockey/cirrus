@@ -36,8 +36,6 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.tools.shell.Global;
 
-import com.joelhockey.cirrus.CirrusScope.CacheEntry;
-
 /**
  * Rhino scope for CirrusServlet.  Based on {@link Global}.
  * Each servlet thread has its own instance of this class.
@@ -101,7 +99,9 @@ public class CirrusScope extends ImporterTopLevel {
                 return -1;
             }
             if (entry == null) {
-                entry = new CacheEntry(resource.openConnection().getLastModified(), System.currentTimeMillis(), null);
+                entry = new CacheEntry<Object>(
+                        resource.openConnection().getLastModified(),
+                        System.currentTimeMillis(), null);
                 LAST_MOD_CACHE.put(path, entry);
             }
             return entry.lastModified;
