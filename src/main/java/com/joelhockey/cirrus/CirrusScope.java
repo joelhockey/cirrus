@@ -305,7 +305,49 @@ public class CirrusScope extends ImporterTopLevel {
 
         // not found in cache, must compile and execute
         log.info("loadjst: " + path);
-        CacheEntry<Script> entry = compilejst(cx, name);
+        String jstFile = readFile(path);
+        // if prototype declared, then load it
+        Pattern p = Pattern.compile("^\\s*\\{[ \\t]*prototype[ \\t]+([^\\s{}]+)[ \\t]*}");
+        Matcher m = p.matcher(jstFile);
+        if (m.find()) {
+            loadjst(cx, m.group(1));
+        }
+
+        CacheEntry<Script> entry = cacheLookup(SCRIPT_CACHE, path);
+        if (entry == null) {
+            // call JST.parse(<jst file contents>)
+            ScriptableObject jstObj = (ScriptableObject) get("JST", this);
+            Function parse = (Function) jstObj.get("parse", jstObj);
+            try {
+                log.info("JST.parse(" + name + ".jst)");
+                String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
+                File tempDir = (File) sconf.getServletContext().getAttribute("javax.servlet.context.tempdir");
+                String sourceName = "views/" + name + ".js";
+                if (tempDir != null) {
+                    File jstDir = new File(tempDir, "jst");
+                    jstDir.mkdir();
+                    File compiledJstFile = new File(jstDir, name + ".js");
+                    sourceName = compiledJstFile.toURI().toString();
+                    log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
+                    FileOutputStream fos = new FileOutputStream(compiledJstFile);
+                    try {
+                        fos.write(source.getBytes());
+                    } finally {
+                        fos.close();
+                    }
+                }
+                Script script = cx.compileString(source, sourceName, 1, null);
+                URL resource = sconf.getServletContext().getResource(path);
+                URLConnection urlc = resource.openConnection();
+                entry = new CacheEntry<Script>(urlc.getLastModified(),
+                        System.currentTimeMillis(), script);
+                SCRIPT_CACHE.put(path, entry);
+            } catch (JavaScriptException jse) {
+                    IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
+                    ioe.initCause(jse);
+                    throw ioe;
+            }
+        }
 
         // execute compiled JST code in this scope
         entry.object.exec(cx, this);
@@ -319,59 +361,6 @@ public class CirrusScope extends ImporterTopLevel {
                 entry.lastChecked, template);
         templateCache.put(path, result);
         return result;
-    }
-
-    private CacheEntry<Script> compilejst(Context cx,
-            String name) throws IOException {
-
-        String path = "/WEB-INF/app/views/" + name.replace('.', '/') + ".jst";
-        CacheEntry<Script> entry = cacheLookup(SCRIPT_CACHE, path);
-        if (entry != null) {
-            return entry; // valid entry in cache
-        }
-
-        log.info("compilejst: " + path);
-        String jstFile = readFile(path);
-        // if prototype declared, then load it
-        Pattern p = Pattern.compile("^\\s*\\{[ \\t]*prototype[ \\t]+([^\\s{}]+)[ \\t]*}");
-        Matcher m = p.matcher(jstFile);
-        if (m.find()) {
-            loadjst(cx, m.group(1));
-        }
-
-        // call JST.parse(<jst file contents>)
-        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
-        Function parse = (Function) jstObj.get("parse", jstObj);
-        try {
-            log.info("JST.parse(" + name + ".jst)");
-            String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
-            File tempDir = (File) sconf.getServletContext().getAttribute("javax.servlet.context.tempdir");
-            String sourceName = "views/" + name + ".js";
-            if (tempDir != null) {
-                File jstDir = new File(tempDir, "jst");
-                jstDir.mkdir();
-                File compiledJstFile = new File(jstDir, name + ".js");
-                sourceName = compiledJstFile.toURI().toString();
-                log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
-                FileOutputStream fos = new FileOutputStream(compiledJstFile);
-                try {
-                    fos.write(source.getBytes());
-                } finally {
-                    fos.close();
-                }
-            }
-            Script script = cx.compileString(source, sourceName, 1, null);
-            URL resource = sconf.getServletContext().getResource(path);
-            URLConnection urlc = resource.openConnection();
-            entry = new CacheEntry<Script>(urlc.getLastModified(),
-                    System.currentTimeMillis(), script);
-            SCRIPT_CACHE.put(path, entry);
-            return entry;
-        } catch (JavaScriptException jse) {
-                IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
-                ioe.initCause(jse);
-                throw ioe;
-        }
     }
 
     private <T> CacheEntry<T> cacheLookup(Map<String, CacheEntry<T>> cache,
