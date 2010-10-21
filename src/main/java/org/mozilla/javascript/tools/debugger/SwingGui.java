@@ -1442,6 +1442,16 @@ class FileTextArea
     }
 
     /**
+     * Required to allow horizontal scroll.
+     */
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+        // if our text is narrower than surrounding FileWindow, then stretch
+        // if our text is wider, then don't wrap text - allow horizontal scroll
+        return getWidth() < w.getWidth();
+    }
+
+    /**
      * Moves the selection to the given offset.
      */
     public void select(int pos) {
@@ -1555,10 +1565,7 @@ class FileTextArea
         popup.setVisible(false);
         String cmd = e.getActionCommand();
         int line = -1;
-        try {
-            line = w.getLineOfOffset(pos);
-        } catch (Exception exc) {
-        }
+        line = w.getLineOfOffset(pos);
         if (cmd.equals("Set Breakpoint")) {
             w.setBreakPoint(line + 1);
         } else if (cmd.equals("Clear Breakpoint")) {
@@ -1983,14 +1990,14 @@ class FileHeader extends JPanel implements MouseListener {
         int width = getWidth();
         if (endLine > lineCount) endLine = lineCount;
         for (int i = startLine; i < endLine; i++) {
-            String text;
-            int pos = -2;
-            pos = fileWindow.getLineStartOffset(i);
+            int pos = fileWindow.getLineStartOffset(i);
+            if (pos == -1) {
+                pos--; // don't want it match when fileWindow.currentPos == -1
+            }
             boolean isBreakPoint = fileWindow.isBreakPoint(i + 1);
-            text = Integer.toString(i + 1) + " ";
             int y = i * h;
             g.setColor(Color.blue);
-            g.drawString(text, 0, y + ascent);
+            g.drawString(Integer.toString(i + 1) + " ", 0, y + ascent);
             int x = width - ascent;
             if (isBreakPoint) {
                 g.setColor(new Color(0x80, 0x00, 0x00));
@@ -2029,7 +2036,7 @@ class FileHeader extends JPanel implements MouseListener {
      */
     public void mouseEntered(MouseEvent e) {
     }
-
+    
     /**
      * Called when a mouse button is pressed.
      */
@@ -2210,21 +2217,29 @@ class FileWindow extends JInternalFrame implements ActionListener {
     }
 
     /**
-     * Returns the offset position for the given line.
+     * Returns the offset position for the given line or -1 for invalid line.
      */
     public int getLineStartOffset(int line) {
-        if (line >= 0 && line < lineStartOffsets.length) {
+        if (line > 0 && line < lineCount) {
             return lineStartOffsets[line];
         } else {
             return -1;
         }
     }
+
+    /**
+     * Returns line count.
+     */
     public int getLineCount() {
-        return lineStartOffsets.length;
+        return lineCount;
     }
+
+    /**
+     * Return line that corresponds to given offset
+     */
     public int getLineOfOffset(int offset) {
         int i = 0;
-        while (i < lineStartOffsets.length && offset < lineStartOffsets[i++]);
+        while (i < lineCount && offset < lineStartOffsets[i++]);
         return i + 1;
     }
 
@@ -2334,10 +2349,11 @@ class FileWindow extends JInternalFrame implements ActionListener {
             // re-calculate lineOffsets (must normalize linesep)
             lineCount = 1;
             int offset = 0;
+
             for (int i = 0; i < newText.length(); i++) {
                 char c = newText.charAt(i);
                 // treat CRLF as single char
-                if (c == '\n' && i > 1 && newText.charAt(i - 1) == '\r') {
+                if (c == '\n' && i > 0 && newText.charAt(i - 1) == '\r') {
                     continue;
                 }
                 offset++;
@@ -2359,7 +2375,7 @@ class FileWindow extends JInternalFrame implements ActionListener {
     }
 
     /**
-     * Apply syntax higlight to @link {@link #textArea}
+     * Apply syntax higlight to {@link #textArea}
      */
     private void hilight() {
         StyledDocument doc = textArea.getStyledDocument();
@@ -2400,12 +2416,14 @@ class FileWindow extends JInternalFrame implements ActionListener {
                 // move to end of line or end of doc
                 while (++pos < text.length() && text.charAt(pos) != '\r'
                     && text.charAt(pos) != '\n');
-            } else if (c == '\"' || c == '\'') {
+
+            // literal strings or regexp
+            } else if (c == '\"' || c == '\'' || c == '/') {
                 style = QUOTED;
-                int q = c; // match either single or double quote
+                int stop = c; // match either single or double quote or forward slash
                 pos++; // skip first quote
-                while (pos < text.length() && (c = text.charAt(pos++)) != q) {
-                    if (c == '\\') pos++; // skip any escaped quotes
+                while (pos < text.length() && (c = text.charAt(pos++)) != stop) {
+                    if (c == '\\') pos++; // skip any escaped chars
                 }
             } else {
                 pos++;
