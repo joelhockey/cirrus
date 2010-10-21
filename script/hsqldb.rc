@@ -1,5 +1,5 @@
 urlid cirrus
-url jdbc:hsqldb:file:hsqldb/cirrus;shutdown=true
+url jdbc:hsqldb:file:hsqldb/cirrus
 username sa
 password
 

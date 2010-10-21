@@ -30,7 +30,7 @@ server.addHandler(requestLogHandler);
 
 // jndi datasource
 var ds = new org.hsqldb.jdbc.jdbcDataSource();
-ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus;shutdown=true");
+ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus");
 ds.setUser("sa");
 var resource = new org.mortbay.jetty.plus.naming.Resource("jdbc/cirrus", ds);
 
