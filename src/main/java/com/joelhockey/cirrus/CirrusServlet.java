@@ -2,11 +2,8 @@
 
 package com.joelhockey.cirrus;
 
-import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
-import java.util.Enumeration;
-import java.util.Set;
 
 import javax.naming.InitialContext;
 import javax.servlet.ServletConfig;
@@ -24,15 +21,11 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeJavaObject;
-import org.mozilla.javascript.NativeObject;
-import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
- * Main servlet for cirrus.
- * Manages ThreadLocal {@link CirrusScope} and
- * dispatches to /WEB-INF/app/cirrus.js
- *
+ * Main servlet for cirrus. Manages ThreadLocal {@link CirrusScope}
+ * and dispatches to /WEB-INF/app/cirrus.js
  * @author Joel Hockey
  */
 public class CirrusServlet extends HttpServlet {
@@ -52,25 +45,24 @@ public class CirrusServlet extends HttpServlet {
     private static ThreadLocal<Main> DEBUGGERS = new ThreadLocal<Main>() {
         @Override
         protected Main initialValue() {
-//          try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
+            // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
             Main main = new Main("Cirrus Debug " + Thread.currentThread().getName());
             main.setScope(THREAD_SCOPES.get());
             main.attachTo(ContextFactory.getGlobal());
             main.pack();
-            main.setSize(800, 600);
+            main.setSize(1024, 800);
             main.setVisible(true);
             return main;
         }
     };
 
-    /**
-     * Context Factory to set wrap factory.
-     */
+    /** Context Factory to set wrap factory and opt level. */
     static class CirrusContextFactory extends ContextFactory {
         @Override
         protected Context makeContext() {
             Context cx = super.makeContext();
             cx.setWrapFactory(WRAP_FACTORY);
+            cx.setOptimizationLevel(debugjs ? -1 : 9);
             return cx;
         }
     }
@@ -90,7 +82,7 @@ public class CirrusServlet extends HttpServlet {
      * Perform init actions once per classloader.
      * Ensure DB is at correct version, if not run migrations.
      */
-    public synchronized void staticInit() throws ServletException {
+    private synchronized void staticInit() throws ServletException {
         if (staticInit) return;
         sconf = getServletConfig();
 
@@ -134,12 +126,14 @@ public class CirrusServlet extends HttpServlet {
 
     /**
      * Forward requests to WEB-INF/app/cirrus.js.
-     * Puts variables, path, method and params (NativeObject), publicFiles (NativeObject) into global scope.
+     * Puts 'DB', {@link HttpServletRequest} as 'req', and
+     * {@link HttpServletResponse} as 'res' into JS scope.
      */
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
         try {
             if (debugjs) {
+                // launches Rhino Swing debugger attached to this thread / scope
                 DEBUGGERS.get();
             }
 
@@ -153,7 +147,6 @@ public class CirrusServlet extends HttpServlet {
             scope.put("DB", scope, db);
 
             Context cx = Context.enter();
-
             try {
                 Function cirrus = (Function) scope.get("cirrus", scope);
                 //cx.setOptimizationLevel(9);
@@ -168,7 +161,7 @@ public class CirrusServlet extends HttpServlet {
                 scope.delete("res");
             }
         } catch (Exception e) {
-            log.error("error loading cirrus", e);
+            log.error("error running cirrus", e);
             throw new ServletException("Could not load cirrus", e);
         }
     }

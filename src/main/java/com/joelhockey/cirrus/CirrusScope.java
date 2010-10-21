@@ -19,6 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
@@ -48,24 +49,29 @@ public class CirrusScope extends ImporterTopLevel {
     private static final Log log = LogFactory.getLog(CirrusScope.class);
 
     /** Time to wait before reloading changed js file. */
-    public static final long RELOAD_WAIT = 3000;
-    // holds all compiled scripts
+    public static final long RELOAD_WAIT = 10000;
+
+    // static maps hold all compiled scripts
     private static Map<String, CacheEntry<Script>> SCRIPT_CACHE = new HashMap<String, CacheEntry<Script>>();
     private static Map<String, CacheEntry<Object>> LAST_MOD_CACHE = new HashMap<String, CacheEntry<Object>>();
 
-    private ServletConfig sconf;
+    // local maps get populated when compiled scripts are executed in current scope
     private Map<String, CacheEntry<Script>> localScriptCache = new HashMap<String, CacheEntry<Script>>();
     private Map<String, CacheEntry<NativeObject>> templateCache = new HashMap<String, CacheEntry<NativeObject>>();
+    private ServletConfig sconf;
 
     /**
      * Create CirrusScope instance.  Adds various global methods.
-     * @param sconf servlet config used for looking real paths from URL paths
+     * @param sconf servlet config used to access files within web context
      */
     public CirrusScope(ServletConfig sconf) {
+        this.sconf = sconf;
+        put("sconf", this, sconf);
         Context cx = Context.enter();
         initStandardObjects(cx, false);
         String[] names = {
             "fileLastModified",
+            "getResource",
             "jst",
             "load",
             "log",
@@ -78,8 +84,6 @@ public class CirrusScope extends ImporterTopLevel {
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
         put("JSON", this, new com.joelhockey.cirrus.RhinoJSON(this));
-        this.sconf = sconf;
-        put("sconf", this, sconf);
         Context.exit();
     }
 
@@ -89,31 +93,40 @@ public class CirrusScope extends ImporterTopLevel {
      * not already exists.
      * @param path filename
      * @return last modified date or -1 if file not exists.
+     * @throws IOException if file not exists
      */
-    public long fileLastModified(String path) {
-        try {
+    public long fileLastModified(String path) throws IOException {
             CacheEntry<Object> entry = cacheLookup(LAST_MOD_CACHE, path);
-
-            URL resource = sconf.getServletContext().getResource(path);
-            if (resource == null) {
-                return -1;
-            }
             if (entry == null) {
+                // no in cache, or stale
                 entry = new CacheEntry<Object>(
-                        resource.openConnection().getLastModified(),
+                        getResource(path).getLastModified(),
                         System.currentTimeMillis(), null);
                 LAST_MOD_CACHE.put(path, entry);
             }
             return entry.lastModified;
-        } catch (IOException e) {
-            return -1;
-        }
     }
 
     /**
-     * Load javascript file into this context.  File will only be loaded if it doesn't
+     * Return {@link URLConnection} to given path or throw
+     * {@link IOException} if file not exists.
+     * @param path used with {@link ServletContext#getResource(String)}
+     * @return {@link URLConnection} to file or {@link IOException}
+     * if file not exists
+     * @throws IOException if file not exists
+     */
+    public URLConnection getResource(String path) throws IOException {
+        URL resource = sconf.getServletContext().getResource(path);
+        if (resource == null) {
+            throw new IOException("File not found: " + path);
+        }
+        return resource.openConnection();
+    }
+
+    /**
+     * Load javascript file into this scope.  File will only be executed if it doesn't
      * already exist, or if it has been modified since it was last loaded.
-     * @param path URL path will be converted to real path
+     * @param path file to load
      * @return true if file was (re)loaded, false if no change
      * @throws IOException if error reading file
      */
@@ -126,7 +139,23 @@ public class CirrusScope extends ImporterTopLevel {
         // execute script in current scope
         Context cx = Context.enter();
         try {
-            entry = compileScript(cx, path);
+            entry = cacheLookup(SCRIPT_CACHE, path);
+            if (entry == null) {
+                // compile script and store in static SCRIPT_CACHE
+                URLConnection urlc = getResource(path);
+                Reader reader = new BufferedReader(new InputStreamReader(
+                        urlc.getInputStream()));
+                try {
+                    log.info("compiling script: " + path);
+                    Script script = cx.compileReader(
+                            reader, urlc.getURL().toString(), 1, null);
+                    entry = new CacheEntry<Script>(urlc.getLastModified(),
+                            System.currentTimeMillis(), script);
+                    SCRIPT_CACHE.put(path, entry);
+                } finally {
+                    reader.close();
+                }
+            }
             Script script = (Script) entry.object;
             log.info("executing script: " + path);
             script.exec(cx, this);
@@ -138,35 +167,8 @@ public class CirrusScope extends ImporterTopLevel {
         }
     }
 
-    private synchronized CacheEntry<Script> compileScript(
-            Context cx, String path) throws IOException {
-
-        CacheEntry<Script> entry = cacheLookup(SCRIPT_CACHE, path);
-        if (entry != null) {
-            return entry; // valid entry in cache
-        }
-        URL resource = sconf.getServletContext().getResource(path);
-        if (resource == null) {
-            throw new IOException("Could not find script to compile: " + path);
-        }
-        URLConnection urlc = resource.openConnection();
-        Reader reader = new BufferedReader(
-                new InputStreamReader(urlc.getInputStream()));
-        try {
-            log.info("compiling " + resource);
-            Script script = cx.compileReader(
-                    reader, resource.toString(), 1, null);
-            entry = new CacheEntry<Script>(urlc.getLastModified(),
-                    System.currentTimeMillis(), script);
-            SCRIPT_CACHE.put(path, entry);
-        } finally {
-            reader.close();
-        }
-        return entry;
-    }
-
     /**
-     * Read file.  2nd arg is optional stream for reading into.'
+     * Read file.  2nd arg is optional stream for reading into.
      * If not supplied return string result.
      * @param path file to read
      * @param objOuts optional output stream
@@ -176,7 +178,9 @@ public class CirrusScope extends ImporterTopLevel {
     public String readFile(String path, Object objOuts) throws IOException {
         if (objOuts == null || objOuts == Undefined.instance) {
             log.info("readFile: " + path);
-            return readFile(path);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            readFileIntoStream(path, baos);
+            return new String(baos.toByteArray());
         } else {
             log.info("readFile(stream): " + path);
             OutputStream outs = (OutputStream) Context.jsToJava(objOuts, OutputStream.class);
@@ -185,17 +189,8 @@ public class CirrusScope extends ImporterTopLevel {
         }
     }
 
-    private String readFile(String path) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        readFileIntoStream(path, baos);
-        return new String(baos.toByteArray());
-    }
-
     private void readFileIntoStream(String path, OutputStream outs) throws IOException {
-        InputStream ins = sconf.getServletContext().getResourceAsStream(path);
-        if (ins == null) {
-            throw new IOException("No path for file: " + path);
-        }
+        InputStream ins = getResource(path).getInputStream();
         try {
             byte[] buf = new byte[4096];
             for (int l = 0; (l = ins.read(buf)) != -1; ) {
@@ -208,19 +203,19 @@ public class CirrusScope extends ImporterTopLevel {
 
     /** Print objects to log */
     public static void print(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        log.info(dump(args));
+        if (log.isInfoEnabled()) log.info(dump(args));
     }
     /** printf to log */
     public static void printf(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        log.info(printf(args));
+        if (log.isInfoEnabled()) log.info(printf(args));
     }
     /** Print objects to log */
     public static void log(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        log.info(dump(args));
+        if (log.isInfoEnabled()) log.info(dump(args));
     }
     /** printf to log */
     public static void logf(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        log.info(printf(args));
+        if (log.isInfoEnabled()) log.info(printf(args));
     }
     /** Print objects to log */
     public static void logwarn(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
@@ -231,6 +226,7 @@ public class CirrusScope extends ImporterTopLevel {
         log.error(dump(args));
     }
 
+    // format using printf, first arg is string, other args get substitued in
     private static String printf(Object[] args) {
         if (args == null) return null;
         String fstr = (String) args[0];
@@ -240,6 +236,7 @@ public class CirrusScope extends ImporterTopLevel {
         return String.format(fstr, fargs);
     }
 
+    // return JSON formatted
     private static String dump(Object[] args) {
         if (args == null) return null;
         if (args.length == 1) {
@@ -305,7 +302,7 @@ public class CirrusScope extends ImporterTopLevel {
 
         // not found in cache, must compile and execute
         log.info("loadjst: " + path);
-        String jstFile = readFile(path);
+        String jstFile = readFile(path, null);
         // if prototype declared, then load it
         Pattern p = Pattern.compile("^\\s*\\{[ \\t]*prototype[ \\t]+([^\\s{}]+)[ \\t]*}");
         Matcher m = p.matcher(jstFile);
@@ -337,8 +334,7 @@ public class CirrusScope extends ImporterTopLevel {
                     }
                 }
                 Script script = cx.compileString(source, sourceName, 1, null);
-                URL resource = sconf.getServletContext().getResource(path);
-                URLConnection urlc = resource.openConnection();
+                URLConnection urlc = getResource(path);
                 entry = new CacheEntry<Script>(urlc.getLastModified(),
                         System.currentTimeMillis(), script);
                 SCRIPT_CACHE.put(path, entry);
@@ -363,35 +359,40 @@ public class CirrusScope extends ImporterTopLevel {
         return result;
     }
 
+    /**
+     * Return cache entry if valid, or null if item not in cache or stale.
+     * @param <T> type of cache object
+     * @param cache cache to search
+     * @param path cache lookup key used with {@link ServletContext#getResource(String)}
+     * @return cache entry or null if item not in cache or stale
+     * @throws IOException if resource not found
+     */
     private <T> CacheEntry<T> cacheLookup(Map<String, CacheEntry<T>> cache,
             String path) throws IOException {
 
         CacheEntry<T> entry = cache.get(path);
-        long now = System.currentTimeMillis();
         if (entry != null) {
+            long now = System.currentTimeMillis();
             if (entry.lastChecked + RELOAD_WAIT > now) {
+                // we have recently checked file timestamp
                 return entry;
             } else {
-                URL resource = sconf.getServletContext().getResource(path);
-                if (resource == null) {
-                    throw new IOException("No file at: " + path);
-                }
-                URLConnection urlc = resource.openConnection();
-                if (resource != null &&
-                        urlc.getLastModified() == entry.lastModified) {
+                // check file timestamp and compare with cache value
+                if (getResource(path).getLastModified() == entry.lastModified) {
+                    // file hasn't changed - update entry.lastChecked
                     entry.lastChecked = now;
                     return entry;
                 }
             }
         }
+        // cache not exists or is stale
         return null;
     }
 
     static class CacheEntry<T> {
-        public long lastModified;
-        public long lastChecked;
-        public T object;
-
+        long lastModified;
+        long lastChecked;
+        T object;
         CacheEntry(long lastModified, long lastcheck, T object) {
             this.lastModified = lastModified;
             this.lastChecked = lastcheck;

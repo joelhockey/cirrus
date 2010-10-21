@@ -106,13 +106,13 @@ sconf.getServletContext().getResourcePaths("/WEB-INF/public/").forEach(function(
     cirrus.publicPaths[part] = part;
 });
 
-// controllers - set public controller
+// controllers
 var controllers = controllers || {};
+// public controller serves static content in /WEB-INF/public/
 controllers["public"] = {
     getLastModified: function () {
         return fileLastModified("/WEB-INF/public" + path);
     },
-    
     GET: {
         index: function() {
             res.sendRedirect("/login");
