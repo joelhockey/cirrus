@@ -162,7 +162,7 @@ public class CirrusScope extends ImporterTopLevel {
         // load via classpath.  Use '/app/cirrus.js' to detect file or jar path
         String cirrusjs = CirrusScope.class.getResource("/app/cirrus.js").toString();
 
-        // file is in classpath - e.g. file:/.../app/WEB-INF/classes
+        // file is in regular file - file:/.../app/WEB-INF/classes
         if (cirrusjs.startsWith("file:")) {
             try {
                 File appdir = new File(new URI(cirrusjs)).getParentFile();
@@ -175,44 +175,46 @@ public class CirrusScope extends ImporterTopLevel {
                                 (file.isDirectory() ? "/" : ""));
                     }
                 }
-            } catch (URISyntaxException e) {
+            } catch (Exception e) {
                 log.warn("Unexpected error converting URI: " + cirrusjs, e);
             }
 
-        // file is in jar - e.g. jar:file:/.../app/WEB-INF/lib/cirrus.jar!...
+        // file is in jar - jar:file:/.../app/WEB-INF/lib/cirrus.jar!...
         } else if (cirrusjs.startsWith("jar:")) {
             String jarFileName = cirrusjs.substring(4); // skip 'jar:'
             int bang = jarFileName.lastIndexOf('!');
             if (bang != -1) {
                 jarFileName = jarFileName.substring(0, bang);
             }
+            ZipFile zipFile = null;
             try {
-                File jarFile = new File(new URI(jarFileName));
-
                 // read entries of zip file to find files in same dir
-                ZipFile zip = new ZipFile(jarFile);
-                for (Enumeration<? extends ZipEntry> en = zip.entries();
+                zipFile = new ZipFile(new File(new URI(jarFileName)));
+                for (Enumeration<? extends ZipEntry> en = zipFile.entries();
                         en.hasMoreElements(); ) {
 
                     ZipEntry entry = en.nextElement();
-                    String zipFile = entry.getName();
-                    // canonicalize filename
-                    zipFile = zipFile.replace('\\', '/');
-                    if (!zipFile.startsWith("/")) {
-                        zipFile = "/" + zipFile;
+                    String entryName = entry.getName();
+                    // canonicalize filename (start with slash, only forward slash)
+                    entryName = entryName.replace('\\', '/');
+                    if (!entryName.startsWith("/")) {
+                        entryName = "/" + entryName;
                     }
-                    if (zipFile.startsWith(path)) {
+                    if (entryName.startsWith(path)) {
                         // only match files in same dir, not subdirs
-                        int slash = zipFile.indexOf('/', path.length());
+                        int slash = entryName.indexOf('/', path.length());
                         if (slash != -1) {
                             // keep trailing slash
-                            zipFile = zipFile.substring(0, slash + 1);
+                            entryName = entryName.substring(0, slash + 1);
                         }
-                        result.add(zipFile);
+                        result.add(entryName);
                     }
                 }
-            } catch (URISyntaxException e) {
+            } catch (Exception e) {
                 log.warn("Unexpected error converting URI: " + cirrusjs, e);
+            }
+            if (zipFile != null) {
+                zipFile.close();
             }
         }
         return result;
