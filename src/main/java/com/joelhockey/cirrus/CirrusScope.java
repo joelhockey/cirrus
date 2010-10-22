@@ -15,12 +15,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -139,49 +136,78 @@ public class CirrusScope extends ImporterTopLevel {
         return resource.openConnection();
     }
 
-    public Set<String> getResourcePaths(String path) throws IOException, URISyntaxException {
-        Set<String> result = new HashSet<String>();
-        // first try and load via classpath
+    /**
+     * Return set of files in given path or empty set for invalid path.
+     * Uses files returned from {@link ServletContext#getResourcePaths(String)}
+     * then adds any files from classloader.
+     * Looks up URL of '/app/cirrus.js' with {@link Class#getResource(String)}.
+     * If found in classloader, adds file in same filesystem or jar file as
+     * '/app/cirrus.js' that match the given path.
+     * @param path dir to get all files within
+     * @return Set of files in given path or empty set for invalid path.
+     * @throws IOException if error reading files
+     */
+    public Set<String> getResourcePaths(String path) throws IOException {
+        // start with files in /WEB-INF/...
+        Set<String> result = sconf.getServletContext().getResourcePaths("/WEB-INF" + path);
+        if (result == null) {
+            result = new HashSet<String>();
+        }
+
+        // load via classpath.  Use '/app/cirrus.js' to detect file or jar path
         String cirrusjs = CirrusScope.class.getResource("/app/cirrus.js").toString();
+
+        // file is in classpath - e.g. file:/.../app/WEB-INF/classes
         if (cirrusjs.startsWith("file:")) {
-            File appdir = new File(new URI(cirrusjs)).getParentFile();
-            File dir = new File(appdir.getParentFile(), path);
-            String[] list = dir.list();
-            if (list != null) {
-                for (String file : list) {
-                    result.add(path + file);
+            try {
+                File appdir = new File(new URI(cirrusjs)).getParentFile();
+                File dir = new File(appdir.getParentFile(), path);
+                File[] list = dir.listFiles();
+                if (list != null) {
+                    for (File file : list) {
+                        // add trailing slash for dirs
+                        result.add(path + file.getName() +
+                                (file.isDirectory() ? "/" : ""));
+                    }
                 }
+            } catch (URISyntaxException e) {
+                log.warn("Unexpected error converting URI: " + cirrusjs, e);
             }
+
+        // file is in jar - e.g. jar:file:/.../app/WEB-INF/lib/cirrus.jar!...
         } else if (cirrusjs.startsWith("jar:")) {
             String jarFileName = cirrusjs.substring(4); // skip 'jar:'
             int bang = jarFileName.lastIndexOf('!');
             if (bang != -1) {
                 jarFileName = jarFileName.substring(0, bang);
             }
-            File jarFile = new File(new URI(jarFileName));
-            ZipFile zip = new ZipFile(jarFile);
-            for (Enumeration<? extends ZipEntry> en = zip.entries(); en.hasMoreElements(); ) {
-                ZipEntry entry = en.nextElement();
-                String zipFile = entry.getName();
-                // canonicalize filename
-                zipFile = zipFile.replace('\\', '/');
-                if (!zipFile.startsWith("/")) {
-                    zipFile = "/" + zipFile;
-                }
-                if (zipFile.startsWith(path)) {
-                    int slash = zipFile.indexOf('/', path.length());
-                    if (slash != -1) {
-                        zipFile = zipFile.substring(0, slash + 1);
-                    }
-                    result.add(zipFile);
-                }
-            }
+            try {
+                File jarFile = new File(new URI(jarFileName));
 
-        }
-        Set<String> webinf = sconf.getServletContext().getResourcePaths("/WEB-INF" + path);
-        if (webinf != null) {
-            for (String webinfFile : webinf) {
-                result.add(webinfFile.substring("/WEB-INF".length()));
+                // read entries of zip file to find files in same dir
+                ZipFile zip = new ZipFile(jarFile);
+                for (Enumeration<? extends ZipEntry> en = zip.entries();
+                        en.hasMoreElements(); ) {
+
+                    ZipEntry entry = en.nextElement();
+                    String zipFile = entry.getName();
+                    // canonicalize filename
+                    zipFile = zipFile.replace('\\', '/');
+                    if (!zipFile.startsWith("/")) {
+                        zipFile = "/" + zipFile;
+                    }
+                    if (zipFile.startsWith(path)) {
+                        // only match files in same dir, not subdirs
+                        int slash = zipFile.indexOf('/', path.length());
+                        if (slash != -1) {
+                            // keep trailing slash
+                            zipFile = zipFile.substring(0, slash + 1);
+                        }
+                        result.add(zipFile);
+                    }
+                }
+            } catch (URISyntaxException e) {
+                log.warn("Unexpected error converting URI: " + cirrusjs, e);
             }
         }
         return result;
