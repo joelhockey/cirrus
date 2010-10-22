@@ -139,8 +139,8 @@ public class CirrusServlet extends HttpServlet {
 
             CirrusScope scope = THREAD_SCOPES.get();
             scope.load("/app/cirrus.js");
-            scope.put("req", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
-            scope.put("res", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
+            scope.put("request", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
+            scope.put("response", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
 
             // set up DB
             DB db = new DB(scope, DATA_SOURCE);
@@ -157,8 +157,8 @@ public class CirrusServlet extends HttpServlet {
                 db.close();
 
                 // don't keep reference to Servlet objects
-                scope.delete("req");
-                scope.delete("res");
+                scope.delete("request");
+                scope.delete("response");
             }
         } catch (Exception e) {
             log.error("Error running cirrus", e);

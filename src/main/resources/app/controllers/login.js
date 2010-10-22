@@ -18,7 +18,7 @@ controllers.login = {
                 if (hash !== user.hashedPassword) {
                     throw [hash, user.hashedPassword, user];
                 }
-                req.getSession().put("user", user);
+                request.getSession().put("user", user);
                 log("user logged in: " + user.username)
                 jst("user", "list");
             } catch (e) {

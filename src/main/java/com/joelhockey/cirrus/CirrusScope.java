@@ -154,9 +154,13 @@ public class CirrusScope extends ImporterTopLevel {
      */
     public Set<String> getResourcePaths(String path) throws IOException {
         // start with files in /WEB-INF/...
-        Set<String> result = sconf.getServletContext().getResourcePaths("/WEB-INF" + path);
-        if (result == null) {
-            result = new HashSet<String>();
+        Set<String> result = new HashSet<String>();
+        Set<String> webinf = sconf.getServletContext().getResourcePaths("/WEB-INF" + path);
+        if (webinf != null) {
+            // string '/WEB-INF' from front of string
+            for (String webinfFile : webinf) {
+                result.add(webinfFile.substring("/WEB-INF".length()));
+            }
         }
 
         // load via classpath.  Use '/app/cirrus.js' to detect file or jar path
@@ -382,7 +386,7 @@ public class CirrusScope extends ImporterTopLevel {
         Context cx = Context.enter();
         try {
             NativeObject template = loadjst(cx, name).object;
-            NativeJavaObject njoRes = (NativeJavaObject) get("res", this);
+            NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
             HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
             res.setContentType("text/html");
             // template.render(res.getWriter(), context)

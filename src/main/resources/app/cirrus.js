@@ -3,8 +3,8 @@
 /**
  * Dispatch request.
  * Existing global vars:
- * - req HttpServletRequest
- * - res HttpServletResponse
+ * - request HttpServletRequest
+ * - response HttpServletResponse
  * Create global vars (they aren't really that evil):
  * - flash
  * - method
@@ -16,14 +16,14 @@
  */
 var cirrus = function() {
     flash = {};
-    method = String(req.getMethod());
+    method = String(request.getMethod());
     params = {};
-    for (var en = req.getParameterNames(); en.hasMoreElements();) {
+    for (var en = request.getParameterNames(); en.hasMoreElements();) {
         var key = en.nextElement();
-        params[String(key)] = String(req.getParameter(key));
+        params[String(key)] = String(request.getParameter(key));
     }
 
-    path = String(req.getRequestURI());
+    path = String(request.getRequestURI());
     pathdirs = path.split("/");
     controller = pathdirs[1];
     action = pathdirs[2] || "index";
@@ -52,12 +52,12 @@ var cirrus = function() {
         if (method === "GET" && ctlr.getLastModified) {
             var pageLastMod = ctlr.getLastModified()
             if (pageLastMod >= 0) {
-                if (pageLastMod - req.getDateHeader("If-Modified-Since") < 1000) {
-                    res.setStatus(304);
+                if (pageLastMod - request.getDateHeader("If-Modified-Since") < 1000) {
+                    response.setStatus(304);
                     return; // early exit
                 } else {
-                    if (!res.containsHeader("Last-Modified") && pageLastMod >= 0) {
-                        res.setDateHeader("Last-Modified", pageLastMod)
+                    if (!response.containsHeader("Last-Modified") && pageLastMod >= 0) {
+                        response.setDateHeader("Last-Modified", pageLastMod)
                     }
                 }
             }        
@@ -77,7 +77,7 @@ var cirrus = function() {
         } else {
             // return 405 Method Not Allowed
             logwarn("warning, no method handler for path: " + path);
-            res.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
+            response.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
             throw 405;
         }
 
@@ -89,7 +89,7 @@ var cirrus = function() {
         } else {
             logerror("internal server error", e);
         }
-        res.setStatus(status);
+        response.setStatus(status);
         if (status >= 400) { // only show error page for 4xx, 5xx
             jst("errors", String(status));
         }
@@ -115,15 +115,15 @@ controllers["public"] = {
     },
     GET: {
         index: function() {
-            res.sendRedirect("/login");
+            response.sendRedirect("/login");
         },
         $: function () {
             try {
                 // set Content-Type
                 var contentType = sconf.getServletContext().getMimeType(path);
-                res.setContentType(contentType);
+                response.setContentType(contentType);
                 log("using Content-Type: " + contentType + ", for file: " + path);
-                readFile("/public" + path, res.getOutputStream());
+                readFile("/public" + path, response.getOutputStream());
             } catch (e) {
                 logwarn("error sending static file: " + path, e);
                 throw 404;

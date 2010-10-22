@@ -39,7 +39,7 @@
     if (!files || files.length === 0) {
         throw new java.sql.SQLException("No files found in /db/");
     }
-print("files", files)
+    log("files in '/db/':", files)
     var fileMap = {};
     for (var i = 0; i < files.length; i++) {
         // check for filename format <nnn>_<desc>.sql
