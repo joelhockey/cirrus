@@ -120,7 +120,8 @@ public class CirrusScope extends ImporterTopLevel {
      * {@link IOException} if file not exists.  First looks for file under
      * '/WEB-INF' using {@link ServletContext#getResource(String)}, then
      * tries to find file in classpath using {@link Class#getResource(String)}.
-     * @param path file to get (should start with leading slash).
+     * @param path file to get.  Should start with leading slash and use
+     * forward slash for pathsep.
      * @return {@link URLConnection} to file or {@link IOException}
      * if file not exists
      * @throws IOException if file not exists
@@ -148,6 +149,7 @@ public class CirrusScope extends ImporterTopLevel {
      * '/app/cirrus.js' that match the given path.
      * @param path dir to get all files within
      * @return Set of files in given path or empty set for invalid path.
+     * Should start with leading slash and  use forward slash for pathsep.
      * @throws IOException if error reading files
      */
     public Set<String> getResourcePaths(String path) throws IOException {
