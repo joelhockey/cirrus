@@ -1,9 +1,10 @@
+// Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
+
 var JST = {
     templates : {},
     parse : function (body, name) {
         var src = ['JST.templates["' + name + '"] = function() {}; '];
         var tagstack = [];
-        var toptag = function() { return tagstack.length > 0 ? tagstack[tagstack.length - 1] : null; };
         var line = 1;
         var linepos = 1;
         var inEval = false;
@@ -50,8 +51,10 @@ var JST = {
             toks.push({type: "closetag", tok: "{/function render}", value: "function render", words: ["function", "render"]});
         }
         
+print("should be an error: " + a.b)
         for each (tok in toks) {
             //print('tok: ' + tok.type + ", " + (tok.type == "newline" ? "" : tok.value))
+            var toptag = tagstack[tagstack.length - 1];
             // newline
             if (tok.type === "newline") {
                 line++;
@@ -63,7 +66,7 @@ var JST = {
                 }
 
             // are we at end of {text?}...{/text?} or {eval}...{/eval}
-            } else if ((inText || inEval) && tok.type === "closetag" && tok.value === toptag()) {
+            } else if ((inText || inEval) && tok.type === "closetag" && tok.value === toptag) {
                 text();
                 inText = inEval = false; // we are now finished 'text' or 'eval' section
             } else if (inText) { // still in text
@@ -93,7 +96,7 @@ var JST = {
                     src.push(tok.value + " {");
                     tagstack.push("if");
                 } else if (tok.words[0].match(/^els?e?if$/)) {
-                    if (!toptag().match(/^(else?)?if$/)) { error("unexpected /else?if/ tag"); }
+                    if (!toptag || !toptag.match(/^(else?)?if$/)) { error("unexpected /else?if/ tag"); }
                     text();
                     src.push("} else if " + words.slice(1).join(" ") + " {");
                 } else if (tok.words[0] === "for") {
@@ -101,7 +104,7 @@ var JST = {
                     src.push("var forcounter = 0; " + tok.value + " { forcounter++; ");
                     tagstack.push("for");
                 } else if (tok.words[0] === "forelse") {
-                    if (toptag() !== "for") { error("unexpected forelse tag"); }
+                    if (toptag !== "for") { error("unexpected forelse tag"); }
                     text();
                     src.push("} if (forcounter === 0) { ");
                 } else if (tok.words[0] === "eval") {
@@ -121,7 +124,7 @@ var JST = {
 
             // close tag
             } else if (tok.type === "closetag") {
-                if (toptag() !== tok.value) { error("unexepcted closetag " + tok.tok); }
+                if (toptag !== tok.value) { error("unexepcted closetag " + tok.tok); }
                 tagstack.pop();
                 text();
                 if (tok.words[0] === "function") {
