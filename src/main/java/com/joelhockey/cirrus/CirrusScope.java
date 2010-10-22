@@ -126,10 +126,13 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if file not exists
      */
     public URLConnection getResource(String path) throws IOException {
+        // look in '/WEB-INF' first
         URL resource = sconf.getServletContext().getResource("/WEB-INF" + path);
         if (resource == null) {
+            // not found in '/WEB-INF', try classloader
             resource = CirrusScope.class.getResource(path);
             if (resource == null) {
+                // does not exist!
                 throw new IOException("File not found: " + path);
             }
         }
