@@ -15,6 +15,7 @@ public class CirrusTest extends TestCase {
     private MockServletConfig sconf;
 
     public void setUp() throws Exception {
+//System.setProperty("debugjs", "true");
         InitialContext ic = new InitialContext();
         jdbcDataSource ds = new jdbcDataSource();
         ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus");
@@ -28,12 +29,12 @@ public class CirrusTest extends TestCase {
     }
 
     public void testIndex() throws Exception {
-        req = new MockHttpServletRequest("/");
+        req = new MockHttpServletRequest("GET", "/");
         res = new MockHttpServletResponse();
         servlet.service(req, res);
         assertEquals(200, res.status);
 
-        req = new MockHttpServletRequest("/");
+        req = new MockHttpServletRequest("GET", "/");
         req.headers.put("If-Modified-Since", res.headers.get("Last-Modified"));
         res = new MockHttpServletResponse();
         servlet.service(req, res);
@@ -41,7 +42,7 @@ public class CirrusTest extends TestCase {
     }
 
     public void testTestHello() throws Exception {
-        req = new MockHttpServletRequest("/test/hello");
+        req = new MockHttpServletRequest("GET", "/test/hello");
         res = new MockHttpServletResponse();
         servlet.service(req, res);
         String response = res.getResponse();

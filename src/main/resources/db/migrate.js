@@ -15,7 +15,7 @@
     } catch (e) {
         // error reading from 'db_version' table, try init script
         logwarn("Error getting db version, will try and load init script: ", e);
-        var sql = readFile("/WEB-INF/db/000_init.sql");
+        var sql = readFile("/db/000_init.sql");
         DB.execute(sql);
         DB.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
         dbversion = DB.selectInt("select max(version) from db_version");
@@ -33,16 +33,18 @@
     // move from dbversion to version
     log("doing db migration.  " + msg);
     
-    // look in dir /WEB-INF/db to find required files
-    var files = sconf.getServletContext().getResourcePaths("/WEB-INF/db/");
+    // look in dir /db to find required files
+    var files = getResourcePaths("/db/") || [];
+    // now check if cirrus is packaged as 
     if (!files || files.length === 0) {
-        throw new java.sql.SQLException("No files found in /WEB-INF/db/");
+        throw new java.sql.SQLException("No files found in /db/");
     }
+print("files", files)
     var fileMap = {};
     for (var i = 0; i < files.length; i++) {
         // check for filename format <nnn>_<desc>.sql
         var match;
-        if (match = /^\/WEB-INF\/db\/(\d{3})_.*\.sql$/.exec(files[i])) {
+        if (match = /^\/db\/(\d{3})_.*\.sql$/.exec(files[i])) {
             var filenum = parseInt(match[1]);
             if (filenum > dbversion && filenum <= version) {
                 // check for duplicates

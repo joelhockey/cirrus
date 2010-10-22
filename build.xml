@@ -15,7 +15,10 @@
         <fileset dir="lib" />
       </classpath>
     </javac>
-  </target>
+    <copy todir="target/classes">
+      <fileset dir="src/main/resources"/>
+    </copy>
+ </target>
 
   <target name="compile-test" depends="compile" description="compile test">
     <javac srcdir="src/test/java" destdir="target/test-classes"
@@ -26,9 +29,7 @@
       </classpath>
     </javac>
     <copy todir="target/test-classes">
-      <fileset dir="src/main/webapp"/>
       <fileset dir="src/test/resources"/>
-      <fileset dir="src/test/webapp"/>
     </copy>
   </target>
 
@@ -58,17 +59,8 @@
     </junitreport>
   </target>
   
-  <target name="war" depends="compile" description="war">
-    <copy todir="target/${ant.project.name}-${version}">
-      <fileset dir="src/main/webapp" />
-    </copy>
-    <copy todir="target/${ant.project.name}-${version}/WEB-INF/classes"> 
-      <fileset dir="target/classes" />
-    </copy>
-    <copy todir="target/${ant.project.name}-${version}/WEB-INF/lib"> 
-      <fileset dir="lib/runtime" />
-    </copy>
-    <jar jarfile="target/${ant.project.name}-${version}.war" basedir="target/${ant.project.name}-${version}" />
+  <target name="jar" depends="compile" description="jar">
+    <jar jarfile="target/${ant.project.name}-${version}.jar" basedir="target/classes" />
   </target>
 
   <target name="clean" description="clean">

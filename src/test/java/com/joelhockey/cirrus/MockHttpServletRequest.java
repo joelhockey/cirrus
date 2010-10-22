@@ -25,17 +25,18 @@ public class MockHttpServletRequest implements HttpServletRequest {
         put("hex", "0123456789abcdef");
     }};
     public Map<String, Object> attribs = new HashMap<String, Object>();
-    public String method = "GET";
+    public String method;
     public Map<String, String> headers = new HashMap<String, String>();
-    public String path;
+    public String requestURI;
+
     private SimpleDateFormat dateHeaderFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'");
     {
     	dateHeaderFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
     }
 
-    public MockHttpServletRequest(String path) {
-        attribs.put("javax.servlet.include.servlet_path", path);
-        this.path = path;
+    public MockHttpServletRequest(String method, String requestURI) {
+        this.method = method;
+        this.requestURI = requestURI;
     }
     public String getAuthType() { throw new UnsupportedOperationException(); }
     public String getContextPath() { throw new UnsupportedOperationException(); }
@@ -57,10 +58,10 @@ public class MockHttpServletRequest implements HttpServletRequest {
     public String getPathTranslated() { throw new UnsupportedOperationException(); }
     public String getQueryString() { throw new UnsupportedOperationException(); }
     public String getRemoteUser() { throw new UnsupportedOperationException(); }
-    public String getRequestURI() { throw new UnsupportedOperationException(); }
+    public String getRequestURI() { return requestURI; }
     public StringBuffer getRequestURL() { throw new UnsupportedOperationException(); }
     public String getRequestedSessionId() { throw new UnsupportedOperationException(); }
-    public String getServletPath() { return path; }
+    public String getServletPath() { throw new UnsupportedOperationException(); }
     public HttpSession getSession() { throw new UnsupportedOperationException(); }
     public HttpSession getSession(boolean arg0) { throw new UnsupportedOperationException(); }
     public Principal getUserPrincipal() { throw new UnsupportedOperationException(); }

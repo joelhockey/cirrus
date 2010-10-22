@@ -1,8 +1,9 @@
 {prototype test.layout}
 {function title}hello page{/function title}
 {function body}
+{eval debugger;}
   body of hello page
-  Hello a is ${cx.a.toString()}
+  Hello a is ${a.toString()}
   {for (var p in params)}
     ${p} : ${params[p]}
   {forelse}

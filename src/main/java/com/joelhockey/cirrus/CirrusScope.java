@@ -11,12 +11,22 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
@@ -72,6 +82,7 @@ public class CirrusScope extends ImporterTopLevel {
         String[] names = {
             "fileLastModified",
             "getResource",
+            "getResourcePaths",
             "jst",
             "load",
             "log",
@@ -109,19 +120,73 @@ public class CirrusScope extends ImporterTopLevel {
 
     /**
      * Return {@link URLConnection} to given path or throw
-     * {@link IOException} if file not exists.
-     * @param path used with {@link ServletContext#getResource(String)}
+     * {@link IOException} if file not exists.  First looks for file under
+     * '/WEB-INF' using {@link ServletContext#getResource(String)}, then
+     * tries to find file in classpath using {@link Class#getResource(String)}.
+     * @param path file to get (should start with leading slash).
      * @return {@link URLConnection} to file or {@link IOException}
      * if file not exists
      * @throws IOException if file not exists
      */
     public URLConnection getResource(String path) throws IOException {
-        URL resource = sconf.getServletContext().getResource(path);
+        URL resource = sconf.getServletContext().getResource("/WEB-INF" + path);
         if (resource == null) {
-            throw new IOException("File not found: " + path);
+            resource = CirrusScope.class.getResource(path);
+            if (resource == null) {
+                throw new IOException("File not found: " + path);
+            }
         }
         return resource.openConnection();
     }
+
+    public Set<String> getResourcePaths(String path) throws IOException, URISyntaxException {
+        Set<String> result = new HashSet<String>();
+        // first try and load via classpath
+        String cirrusjs = CirrusScope.class.getResource("/app/cirrus.js").toString();
+        if (cirrusjs.startsWith("file:")) {
+            File appdir = new File(new URI(cirrusjs)).getParentFile();
+            File dir = new File(appdir.getParentFile(), path);
+            String[] list = dir.list();
+            if (list != null) {
+                for (String file : list) {
+                    result.add(path + file);
+                }
+            }
+        } else if (cirrusjs.startsWith("jar:")) {
+            String jarFileName = cirrusjs.substring(4); // skip 'jar:'
+            int bang = jarFileName.lastIndexOf('!');
+            if (bang != -1) {
+                jarFileName = jarFileName.substring(0, bang);
+            }
+            File jarFile = new File(new URI(jarFileName));
+            ZipFile zip = new ZipFile(jarFile);
+            for (Enumeration<? extends ZipEntry> en = zip.entries(); en.hasMoreElements(); ) {
+                ZipEntry entry = en.nextElement();
+                String zipFile = entry.getName();
+                // canonicalize filename
+                zipFile = zipFile.replace('\\', '/');
+                if (!zipFile.startsWith("/")) {
+                    zipFile = "/" + zipFile;
+                }
+                if (zipFile.startsWith(path)) {
+                    int slash = zipFile.indexOf('/', path.length());
+                    if (slash != -1) {
+                        zipFile = zipFile.substring(0, slash + 1);
+                    }
+                    result.add(zipFile);
+                }
+            }
+
+        }
+        Set<String> webinf = sconf.getServletContext().getResourcePaths("/WEB-INF" + path);
+        if (webinf != null) {
+            for (String webinfFile : webinf) {
+                result.add(webinfFile.substring("/WEB-INF".length()));
+            }
+        }
+        return result;
+    }
+
 
     /**
      * Load javascript file into this scope.  File will only be executed if it doesn't
@@ -253,7 +318,7 @@ public class CirrusScope extends ImporterTopLevel {
     /**
      * Render specified JST template.  Optional parameters are ctlr, action and context.
      * If not specified, ctlr uses global variable 'controller', action uses global 'action'
-     * and context uses the global scope (this).
+     * and context uses the controller.
      * @param args is either [], [action], [context], [action, context], [ctlr, action], [ctlr, action, context]
      * @throws IOException if error loading template
      */
@@ -269,10 +334,14 @@ public class CirrusScope extends ImporterTopLevel {
         }
         String controller = (String) (arg1 == Undefined.instance ? get("controller", this) : arg1);
         String action = (String) (arg2 == Undefined.instance ? get("action", this) : arg2);
-        Object context = arg3 == Undefined.instance ? this : arg3;
+        Object context = arg3;
+        if (arg3 == Undefined.instance) {
+            Scriptable controllers = (Scriptable) get("controllers", this);
+            context = controllers.get(controller, controllers);
+        }
 
         // reload 'jst.js'.  Clear templateCache if jst.js has changed
-        if (load("/WEB-INF/app/jst.js")) {
+        if (load("/app/jst.js")) {
             templateCache.clear();
         }
 
@@ -294,7 +363,7 @@ public class CirrusScope extends ImporterTopLevel {
     private CacheEntry<NativeObject> loadjst(Context cx,
             String name) throws IOException {
 
-        String path = "/WEB-INF/app/views/" + name.replace('.', '/') + ".jst";
+        String path = "/app/views/" + name.replace('.', '/') + ".jst";
         CacheEntry<NativeObject> result = cacheLookup(templateCache, path);
         if (result != null) {
             return result;  // found in cache

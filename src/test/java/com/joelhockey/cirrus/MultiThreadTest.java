@@ -10,7 +10,7 @@ public class MultiThreadTest implements Runnable {
 	}
 
 	public void run() {
-		MockHttpServletRequest req = new MockHttpServletRequest("/mthread");
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/mthread");
 		MockHttpServletResponse res = new MockHttpServletResponse();
 		req.params.put("p", p);
 		try {
@@ -24,7 +24,7 @@ public class MultiThreadTest implements Runnable {
 		MockServletConfig sconf = new MockServletConfig();
 		CirrusServlet cirrus = new CirrusServlet();
 		cirrus.init(sconf);
-		
+
 		new Thread(new MultiThreadTest(cirrus, "p1")).start();
 		Thread.sleep(1500);
 		new Thread(new MultiThreadTest(cirrus, "p2")).start();

@@ -20,6 +20,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public PrintWriter pw = new PrintWriter(baos);
     public Map<String, String> headers = new HashMap<String, String>();
     public int status = 200;
+    public String redirect;
     private SimpleDateFormat dateHeaderFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'");
     {
     	dateHeaderFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -41,7 +42,9 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public String encodeUrl(String arg0) { throw new UnsupportedOperationException(); }
     public void sendError(int arg0) throws IOException { throw new UnsupportedOperationException(); }
     public void sendError(int arg0, String arg1) throws IOException { throw new UnsupportedOperationException(); }
-    public void sendRedirect(String arg0) throws IOException { throw new UnsupportedOperationException(); }
+    public void sendRedirect(String redirect) throws IOException {
+        this.redirect = redirect;
+    }
     public void setDateHeader(String header, long value) {
     	headers.put(header, dateHeaderFormat.format(new Date(value)));
     }

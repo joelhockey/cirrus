@@ -32,7 +32,7 @@ var cirrus = function() {
     if (!controller || cirrus.publicPaths[controller]) {
         controller = "public";
     } else {
-        load("/WEB-INF/app/controllers/" + controller + ".js");
+        load("/app/controllers/" + controller + ".js");
     }
 
     try {
@@ -100,18 +100,18 @@ var cirrus = function() {
 
 // set publicPaths - this lets us know when we have static files to serve
 cirrus.publicPaths = {};
-sconf.getServletContext().getResourcePaths("/WEB-INF/public/").forEach(function(path) {
-    var part = path.split("/")[3];
+getResourcePaths("/public/").forEach(function(path) {
+    var part = path.split("/")[2];
     log("public path: " + part)
     cirrus.publicPaths[part] = part;
 });
 
 // controllers
 var controllers = controllers || {};
-// public controller serves static content in /WEB-INF/public/
+// public controller serves static content in /public/
 controllers["public"] = {
     getLastModified: function () {
-        return fileLastModified("/WEB-INF/public" + path);
+        return fileLastModified("/public" + path);
     },
     GET: {
         index: function() {
@@ -123,7 +123,7 @@ controllers["public"] = {
                 var contentType = sconf.getServletContext().getMimeType(path);
                 res.setContentType(contentType);
                 log("using Content-Type: " + contentType + ", for file: " + path);
-                readFile("/WEB-INF/public" + path, res.getOutputStream());
+                readFile("/public" + path, res.getOutputStream());
             } catch (e) {
                 logwarn("error sending static file: " + path, e);
                 throw 404;

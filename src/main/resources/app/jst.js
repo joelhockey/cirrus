@@ -51,7 +51,6 @@ var JST = {
             toks.push({type: "closetag", tok: "{/function render}", value: "function render", words: ["function", "render"]});
         }
         
-print("should be an error: " + a.b)
         for each (tok in toks) {
             //print('tok: ' + tok.type + ", " + (tok.type == "newline" ? "" : tok.value))
             var toptag = tagstack[tagstack.length - 1];

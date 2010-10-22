@@ -7,18 +7,15 @@
   <artifactId>cirrus</artifactId>
   <version>1.0</version>
   <name>cirrus</name>
-  <packaging>war</packaging>
+  <packaging>jar</packaging>
 
   <build>
     <testResources>
       <testResource>
+        <directory>src/test/javascript</directory>
+      </testResource>
+      <testResource>
         <directory>src/test/resources</directory>
-      </testResource>
-      <testResource>
-        <directory>src/test/webapp</directory>
-      </testResource>
-      <testResource>
-        <directory>src/main/webapp</directory>
       </testResource>
     </testResources>
     <plugins>
@@ -31,13 +28,8 @@
           <target>1.5</target>
         </configuration>
       </plugin>
-      <plugin>
-        <artifactId>maven-war-plugin</artifactId>
-        <version>2.1-beta-1</version>
-        <configuration>
-          <filteringDeploymentDescriptors>true</filteringDeploymentDescriptors>
-        </configuration>
-      </plugin>
+
+      <!-- example of using jairusunit -->
       <plugin>
         <artifactId>maven-antrun-plugin</artifactId>
         <version>1.1</version>
@@ -50,11 +42,12 @@
             </goals>
             <configuration>
               <tasks>
-                <taskdef name="jairusunit" classname="com.joelhockey.jairusunit.JairusUnitTask" classpathref="maven.test.classpath" />
-                <jairusunit classpathref="maven.test.classpath" >
+                <taskdef name="jairusunit" classname="com.joelhockey.jairusunit.JairusUnitTask"
+                  classpathref="maven.test.classpath" />
+                <jairusunit failonerror="no" classpathref="maven.test.classpath">
                   <batchtest>
                     <fileset dir="src/test/javascript">
-                      <include name="**/*test*.js"/>
+                      <include name="**/*test*.js" />
                     </fileset>
                   </batchtest>
                 </jairusunit>

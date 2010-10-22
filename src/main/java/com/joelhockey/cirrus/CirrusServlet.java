@@ -25,7 +25,7 @@ import org.mozilla.javascript.tools.debugger.Main;
 
 /**
  * Main servlet for cirrus. Manages ThreadLocal {@link CirrusScope}
- * and dispatches to /WEB-INF/app/cirrus.js
+ * and dispatches to /app/cirrus.js
  * @author Joel Hockey
  */
 public class CirrusServlet extends HttpServlet {
@@ -71,7 +71,7 @@ public class CirrusServlet extends HttpServlet {
         ContextFactory.initGlobal(new CirrusContextFactory());
     }
 
-    private DataSource dataSource;
+    private static DataSource DATA_SOURCE;
 
     @Override
     public void init() throws ServletException {
@@ -97,9 +97,9 @@ public class CirrusServlet extends HttpServlet {
             InitialContext ic = new InitialContext();
             String dbname = getServletConfig().getInitParameter("dbname");
             log.info("Looking up jndi db: " + dbname);
-            dataSource = (DataSource) ic.lookup(dbname);
+            DATA_SOURCE = (DataSource) ic.lookup(dbname);
             // test
-            Connection dbconn = dataSource.getConnection();
+            Connection dbconn = DATA_SOURCE.getConnection();
             dbconn.close();
         } catch (Exception e) {
             log.error("Error getting dbconn", e);
@@ -109,9 +109,9 @@ public class CirrusServlet extends HttpServlet {
         DB db = null;
         CirrusScope scope = THREAD_SCOPES.get();
         try {
-            db = new DB(scope, dataSource);
+            db = new DB(scope, DATA_SOURCE);
             scope.put("DB", scope, db);
-            scope.load("/WEB-INF/db/migrate.js");
+            scope.load("/db/migrate.js");
             scope.delete("DB");
         } catch (Exception e) {
             log.error("Error migrating db", e);
@@ -138,12 +138,12 @@ public class CirrusServlet extends HttpServlet {
             }
 
             CirrusScope scope = THREAD_SCOPES.get();
-            scope.load("/WEB-INF/app/cirrus.js");
+            scope.load("/app/cirrus.js");
             scope.put("req", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
             scope.put("res", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
 
             // set up DB
-            DB db = new DB(scope, dataSource);
+            DB db = new DB(scope, DATA_SOURCE);
             scope.put("DB", scope, db);
 
             Context cx = Context.enter();
@@ -161,8 +161,8 @@ public class CirrusServlet extends HttpServlet {
                 scope.delete("res");
             }
         } catch (Exception e) {
-            log.error("error running cirrus", e);
-            throw new ServletException("Could not load cirrus", e);
+            log.error("Error running cirrus", e);
+            throw new ServletException("Error running cirrus", e);
         }
     }
 }

@@ -7,6 +7,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -27,15 +28,24 @@ public class MockServletContext implements ServletContext {
     public String getMimeType(String arg0) { throw new UnsupportedOperationException(); }
     public int getMinorVersion() { throw new UnsupportedOperationException(); }
     public RequestDispatcher getNamedDispatcher(String arg0) { throw new UnsupportedOperationException(); }
-    public String getRealPath(String path) {
-        return "target/test-classes" + path;
-    }
+    public String getRealPath(String path) { throw new UnsupportedOperationException(); }
     public RequestDispatcher getRequestDispatcher(String arg0) { throw new UnsupportedOperationException(); }
     public URL getResource(String path) throws MalformedURLException {
-        return new File("target/test-classes" + path).toURL();
+        File f = new File("src/test/webapp" + path);
+        return f.exists() ? f.toURL() : null;
     }
     public InputStream getResourceAsStream(String arg0) { throw new UnsupportedOperationException(); }
-    public Set getResourcePaths(String arg0) { throw new UnsupportedOperationException(); }
+    public Set getResourcePaths(String path) {
+        File dir = new File("src/test/webapp" + path);
+        if (!dir.isDirectory()) {
+            return null;
+        }
+        Set<String> result = new HashSet<String>();
+        for (String f : dir.list()) {
+            result.add(path + f);
+        }
+        return result;
+    }
     public String getServerInfo() { throw new UnsupportedOperationException(); }
     public Servlet getServlet(String arg0) throws ServletException { throw new UnsupportedOperationException(); }
     public String getServletContextName() { throw new UnsupportedOperationException(); }
