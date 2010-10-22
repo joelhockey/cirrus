@@ -1,4 +1,10 @@
+// Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
+
 package com.joelhockey.cirrus;
+
+import javax.naming.InitialContext;
+
+import org.hsqldb.jdbc.jdbcDataSource;
 
 import junit.framework.TestCase;
 
@@ -9,7 +15,14 @@ public class CirrusTest extends TestCase {
     private MockServletConfig sconf;
 
     public void setUp() throws Exception {
+        InitialContext ic = new InitialContext();
+        jdbcDataSource ds = new jdbcDataSource();
+        ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus");
+        ds.setUser("sa");
+        ic.bind("jdbc/cirrus", ds);
+
         sconf = new MockServletConfig();
+        sconf.params.put("dbname", "jdbc/cirrus");
         servlet = new CirrusServlet();
         servlet.init(sconf);
     }

@@ -28,23 +28,12 @@ public class MockServletContext implements ServletContext {
     public int getMinorVersion() { throw new UnsupportedOperationException(); }
     public RequestDispatcher getNamedDispatcher(String arg0) { throw new UnsupportedOperationException(); }
     public String getRealPath(String path) {
-        if (path.charAt(0) != '/') {
-            path = "/" + path;
-        }
-
         return "target/test-classes" + path;
-//        URL url = MockServletContext.class.getResource(path);
-//        if (url == null) {
-//            throw new NullPointerException("could not find real (or any) path for: [" + path + "]");
-//        }
-//        try {
-//            return new File(url.toURI()).getAbsolutePath();
-//        } catch (URISyntaxException e) {
-//            throw new RuntimeException(e);
-//        }
     }
     public RequestDispatcher getRequestDispatcher(String arg0) { throw new UnsupportedOperationException(); }
-    public URL getResource(String arg0) throws MalformedURLException { throw new UnsupportedOperationException(); }
+    public URL getResource(String path) throws MalformedURLException {
+        return new File("target/test-classes" + path).toURL();
+    }
     public InputStream getResourceAsStream(String arg0) { throw new UnsupportedOperationException(); }
     public Set getResourcePaths(String arg0) { throw new UnsupportedOperationException(); }
     public String getServerInfo() { throw new UnsupportedOperationException(); }
