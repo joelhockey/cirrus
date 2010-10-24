@@ -32,14 +32,15 @@ public class CirrusServlet extends HttpServlet {
     private static final long serialVersionUID = 0x26FAB6AD9ECB6BDCL;
     private static final Log log = LogFactory.getLog(CirrusServlet.class);
 
-    private static boolean staticInit = false;
-    private static boolean debugjs = false;
-    private static ServletConfig sconf;
+    private static boolean STATIC_INIT = false;
+    private static boolean DEBUG_JS = false;
+    private static DataSource DATA_SOURCE;
+    private static ServletConfig SERVLET_CONFIG;
     private static final RhinoJava WRAP_FACTORY = new RhinoJava();
     private static ThreadLocal<CirrusScope> THREAD_SCOPES = new ThreadLocal<CirrusScope>() {
         @Override
         protected CirrusScope initialValue() {
-            return new CirrusScope(sconf);
+            return new CirrusScope(SERVLET_CONFIG);
         }
     };
     private static ThreadLocal<Main> DEBUGGERS = new ThreadLocal<Main>() {
@@ -62,7 +63,7 @@ public class CirrusServlet extends HttpServlet {
         protected Context makeContext() {
             Context cx = super.makeContext();
             cx.setWrapFactory(WRAP_FACTORY);
-            cx.setOptimizationLevel(debugjs ? -1 : 9);
+            cx.setOptimizationLevel(DEBUG_JS ? -1 : 9);
             return cx;
         }
     }
@@ -70,8 +71,6 @@ public class CirrusServlet extends HttpServlet {
     static {
         ContextFactory.initGlobal(new CirrusContextFactory());
     }
-
-    private static DataSource DATA_SOURCE;
 
     @Override
     public void init() throws ServletException {
@@ -83,12 +82,12 @@ public class CirrusServlet extends HttpServlet {
      * Ensure DB is at correct version, if not run migrations.
      */
     private synchronized void staticInit() throws ServletException {
-        if (staticInit) return;
-        sconf = getServletConfig();
+        if (STATIC_INIT) return;
+        SERVLET_CONFIG = getServletConfig();
 
         // check if running in debug mode
         if (System.getProperty("debugjs") != null) {
-            debugjs = true;
+            DEBUG_JS = true;
             DEBUGGERS.get();
         }
 
@@ -121,7 +120,7 @@ public class CirrusServlet extends HttpServlet {
                 db.close();
             }
         }
-        staticInit = true;
+        STATIC_INIT = true;
     }
 
     /**
@@ -132,7 +131,7 @@ public class CirrusServlet extends HttpServlet {
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
         try {
-            if (debugjs) {
+            if (DEBUG_JS) {
                 // launches Rhino Swing debugger attached to this thread / scope
                 DEBUGGERS.get();
             }

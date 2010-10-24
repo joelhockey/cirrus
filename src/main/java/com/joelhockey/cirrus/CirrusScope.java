@@ -12,7 +12,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Enumeration;
@@ -65,15 +64,16 @@ public class CirrusScope extends ImporterTopLevel {
     // local maps get populated when compiled scripts are executed in current scope
     private Map<String, CacheEntry<Script>> localScriptCache = new HashMap<String, CacheEntry<Script>>();
     private Map<String, CacheEntry<NativeObject>> templateCache = new HashMap<String, CacheEntry<NativeObject>>();
-    private ServletConfig sconf;
+    private ServletConfig servletConfig;
 
     /**
      * Create CirrusScope instance.  Adds various global methods.
-     * @param sconf servlet config used to access files within web context
+     * @param servletConfig servlet config used to access files within web context
      */
-    public CirrusScope(ServletConfig sconf) {
-        this.sconf = sconf;
-        put("sconf", this, sconf);
+    public CirrusScope(ServletConfig servletConfig) {
+        this.servletConfig = servletConfig;
+        put("servletConfig", this, servletConfig);
+        put("servletContext", this, servletConfig.getServletContext());
         Context cx = Context.enter();
         initStandardObjects(cx, false);
         String[] names = {
@@ -100,7 +100,7 @@ public class CirrusScope extends ImporterTopLevel {
      * {@link #RELOAD_WAIT} before checking again.  Adds item to cache if
      * not already exists.
      * @param path filename
-     * @return last modified date or -1 if file not exists.
+     * @return last modified date
      * @throws IOException if file not exists
      */
     public long fileLastModified(String path) throws IOException {
@@ -128,7 +128,7 @@ public class CirrusScope extends ImporterTopLevel {
      */
     public URLConnection getResource(String path) throws IOException {
         // look in '/WEB-INF' first
-        URL resource = sconf.getServletContext().getResource("/WEB-INF" + path);
+        URL resource = servletConfig.getServletContext().getResource("/WEB-INF" + path);
         if (resource == null) {
             // not found in '/WEB-INF', try classloader
             resource = CirrusScope.class.getResource(path);
@@ -155,7 +155,7 @@ public class CirrusScope extends ImporterTopLevel {
     public Set<String> getResourcePaths(String path) throws IOException {
         // start with files in /WEB-INF/...
         Set<String> result = new HashSet<String>();
-        Set<String> webinf = sconf.getServletContext().getResourcePaths("/WEB-INF" + path);
+        Set<String> webinf = servletConfig.getServletContext().getResourcePaths("/WEB-INF" + path);
         if (webinf != null) {
             // string '/WEB-INF' from front of string
             for (String webinfFile : webinf) {
@@ -258,8 +258,8 @@ public class CirrusScope extends ImporterTopLevel {
                     reader.close();
                 }
             }
-            Script script = (Script) entry.object;
             log.info("executing script: " + path);
+            Script script = entry.object;
             script.exec(cx, this);
             // save to local scope cache
             localScriptCache.put(path, entry);
@@ -424,7 +424,7 @@ public class CirrusScope extends ImporterTopLevel {
             try {
                 log.info("JST.parse(" + name + ".jst)");
                 String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
-                File tempDir = (File) sconf.getServletContext().getAttribute("javax.servlet.context.tempdir");
+                File tempDir = (File) servletConfig.getServletContext().getAttribute("javax.servlet.context.tempdir");
                 String sourceName = "views/" + name + ".js";
                 if (tempDir != null) {
                     File jstDir = new File(tempDir, "jst");

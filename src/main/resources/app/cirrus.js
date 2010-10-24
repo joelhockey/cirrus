@@ -53,14 +53,14 @@ var cirrus = function() {
             var pageLastMod = ctlr.getLastModified()
             if (pageLastMod >= 0) {
                 if (pageLastMod - request.getDateHeader("If-Modified-Since") < 1000) {
-                    response.setStatus(304);
+                    response.setStatus(304); // Not Modified
                     return; // early exit
                 } else {
                     if (!response.containsHeader("Last-Modified") && pageLastMod >= 0) {
                         response.setDateHeader("Last-Modified", pageLastMod)
                     }
                 }
-            }        
+            }
         }
     
         // find method handler or 405
@@ -120,7 +120,7 @@ controllers["public"] = {
         $: function () {
             try {
                 // set Content-Type
-                var contentType = sconf.getServletContext().getMimeType(path);
+                var contentType = servletContext.getMimeType(path);
                 response.setContentType(contentType);
                 log("using Content-Type: " + contentType + ", for file: " + path);
                 readFile("/public" + path, response.getOutputStream());
