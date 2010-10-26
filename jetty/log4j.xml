@@ -2,6 +2,12 @@
 <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
 <log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
 
+  <appender name="stdout" class="org.apache.log4j.ConsoleAppender"> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%-5p [%.4t] %m%n"/> 
+    </layout> 
+  </appender> 
+
   <appender name="logfile" class="org.apache.log4j.DailyRollingFileAppender">
     <param name="File" value="logs/cirrus.log" />
     <param name="Append" value="false" />
@@ -18,5 +24,6 @@
   <root>
     <priority value="debug" />
     <appender-ref ref="logfile" />
+    <appender-ref ref="stdout" />
   </root>
 </log4j:configuration>

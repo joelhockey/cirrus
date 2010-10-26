@@ -76,7 +76,7 @@ var JST = {
             // value substitution
             } else if (tok.type === "value") {
                 text(); // dump existing text
-                src.push('h(' + tok.value + ', out); ') // html-escape
+                src.push('h(' + tok.value + ', out); '); // html-escape
 
             // open tag
             } else if (tok.type === "opentag") {

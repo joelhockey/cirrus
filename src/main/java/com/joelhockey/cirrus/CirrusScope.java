@@ -239,9 +239,8 @@ public class CirrusScope extends ImporterTopLevel {
      * @param writer optional writer
      * @throws IOException if error
      */
-    public String h(Object s, Object writer) throws IOException {
-        System.out.println("h: [" + s + "], " + writer);
-        if (s == null || s == Undefined.instance) {
+    public String h(String s, Object writer) throws IOException {
+        if (s == null) {
             return "";
         }
         if (writer instanceof NativeJavaObject) {
@@ -249,10 +248,9 @@ public class CirrusScope extends ImporterTopLevel {
         }
         if (writer == null || !(writer instanceof Writer)) {
             writer = new StringWriter();
-            return StringEscapeUtils.escapeHtml(s.toString());
+            return StringEscapeUtils.escapeHtml(s);
         } else {
-            System.out.println("escaping: " + s);
-            StringEscapeUtils.escapeHtml((Writer) writer, s.toString());
+            StringEscapeUtils.escapeHtml((Writer) writer, s);
             return "";
         }
     }
