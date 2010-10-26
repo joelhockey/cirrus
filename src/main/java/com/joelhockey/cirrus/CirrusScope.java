@@ -11,6 +11,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
@@ -28,6 +30,7 @@ import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
@@ -65,6 +68,7 @@ public class CirrusScope extends ImporterTopLevel {
     private Map<String, CacheEntry<Script>> localScriptCache = new HashMap<String, CacheEntry<Script>>();
     private Map<String, CacheEntry<NativeObject>> templateCache = new HashMap<String, CacheEntry<NativeObject>>();
     private ServletConfig servletConfig;
+    private Timer timer = new Timer();
 
     /**
      * Create CirrusScope instance.  Adds various global methods.
@@ -80,6 +84,7 @@ public class CirrusScope extends ImporterTopLevel {
             "fileLastModified",
             "getResource",
             "getResourcePaths",
+            "h",
             "jst",
             "load",
             "log",
@@ -91,6 +96,7 @@ public class CirrusScope extends ImporterTopLevel {
             "readFile",
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
+        put("timer", this, timer);
         put("JSON", this, new com.joelhockey.cirrus.RhinoJSON(this));
         Context.exit();
     }
@@ -224,6 +230,32 @@ public class CirrusScope extends ImporterTopLevel {
         return result;
     }
 
+    /** @return timer */
+    public Timer getTimer() { return timer; }
+
+    /**
+     * HTML escape
+     * @param s string to escape
+     * @param writer optional writer
+     * @throws IOException if error
+     */
+    public String h(Object s, Object writer) throws IOException {
+        System.out.println("h: [" + s + "], " + writer);
+        if (s == null || s == Undefined.instance) {
+            return "";
+        }
+        if (writer instanceof NativeJavaObject) {
+            writer = ((NativeJavaObject)writer).unwrap();
+        }
+        if (writer == null || !(writer instanceof Writer)) {
+            writer = new StringWriter();
+            return StringEscapeUtils.escapeHtml(s.toString());
+        } else {
+            System.out.println("escaping: " + s);
+            StringEscapeUtils.escapeHtml((Writer) writer, s.toString());
+            return "";
+        }
+    }
 
     /**
      * Load javascript file into this scope.  File will only be executed if it doesn't
@@ -360,6 +392,7 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if error loading template
      */
     public void jst(Object arg1, Object arg2, Object arg3) throws IOException {
+        timer.mark("action");
         // shift all args to the right until we get a string in arg2
         // then arg1=ctlr, arg2=action, arg3=context
         for (int i = 0; i < 2; i++) {
@@ -389,11 +422,12 @@ public class CirrusScope extends ImporterTopLevel {
             NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
             HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
             res.setContentType("text/html");
-            // template.render(res.getWriter(), context)
+            // call template.render(res.getWriter(), context)
             Object[] args = {Context.javaToJS(res.getWriter(), template), context};
             ScriptableObject.callMethod(cx, template, "render", args);
         } finally {
             Context.exit();
+            timer.mark("view");
         }
     }
 
@@ -503,6 +537,36 @@ public class CirrusScope extends ImporterTopLevel {
             this.lastModified = lastModified;
             this.lastChecked = lastcheck;
             this.object = object;
+        }
+    }
+
+    public static class Timer {
+        private static final Log log = LogFactory.getLog("cirrus.timer");
+        private long[] times = new long[16]; // allow up to 16 marks
+        private String[] descs = new String[16];
+        private int len = 0;
+        /** start timer */
+        public void start() {
+            times[0] = System.currentTimeMillis();
+            len = 1;
+        }
+        /** save current time and desc to be printed at end. */
+        public void mark(String desc) {
+            if (len == times.length) return;
+            times[len] = System.currentTimeMillis();
+            descs[len++] = desc;
+        }
+        /** print total time and desc, as well as any marks */
+        public void end(String desc) {
+            if (!log.isInfoEnabled()) {
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append(System.currentTimeMillis() - times[0]).append(": ").append(desc);
+            for (int i = 1; i < len; i++) {
+                sb.append(", ").append(times[i] - times[i - 1]).append(": ").append(descs[i]);
+            }
+            log.info(sb.toString());
         }
     }
 }

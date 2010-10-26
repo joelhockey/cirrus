@@ -8,8 +8,6 @@ import java.sql.Connection;
 import javax.naming.InitialContext;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -51,7 +49,7 @@ public class CirrusServlet extends HttpServlet {
             main.setScope(THREAD_SCOPES.get());
             main.attachTo(ContextFactory.getGlobal());
             main.pack();
-            main.setSize(1024, 800);
+            main.setSize(960, 720);
             main.setVisible(true);
             return main;
         }
@@ -107,6 +105,7 @@ public class CirrusServlet extends HttpServlet {
 
         DB db = null;
         CirrusScope scope = THREAD_SCOPES.get();
+        scope.getTimer().start();
         try {
             db = new DB(scope, DATA_SOURCE);
             scope.put("DB", scope, db);
@@ -119,6 +118,7 @@ public class CirrusServlet extends HttpServlet {
             if (db != null) {
                 db.close();
             }
+            scope.getTimer().end("DB Migration");
         }
         STATIC_INIT = true;
     }
@@ -129,7 +129,7 @@ public class CirrusServlet extends HttpServlet {
      * {@link HttpServletResponse} as 'res' into JS scope.
      */
     @Override
-    public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
+    public void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         try {
             if (DEBUG_JS) {
                 // launches Rhino Swing debugger attached to this thread / scope
@@ -137,6 +137,7 @@ public class CirrusServlet extends HttpServlet {
             }
 
             CirrusScope scope = THREAD_SCOPES.get();
+            scope.getTimer().start();
             scope.load("/app/cirrus.js");
             scope.put("request", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
             scope.put("response", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
@@ -158,6 +159,7 @@ public class CirrusServlet extends HttpServlet {
                 // don't keep reference to Servlet objects
                 scope.delete("request");
                 scope.delete("response");
+                scope.getTimer().end(req.getMethod() + " " + req.getRequestURI());
             }
         } catch (Exception e) {
             log.error("Error running cirrus", e);

@@ -18,6 +18,7 @@
         var sql = readFile("/db/000_init.sql");
         DB.execute(sql);
         DB.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
+        timer.mark("init");
         dbversion = DB.selectInt("select max(version) from db_version");
     }
     
@@ -55,6 +56,7 @@
             }
         }
     }
+    
     // ensure all files exist
     for (var i = dbversion + 1; i <= version; i++) {
         if (!fileMap[i]) {
@@ -63,12 +65,14 @@
         }
     }
 
+    timer.mark("check version");
     // run scripts
     for (var i = dbversion + 1; i <= version; i++) {
         log("db migration running script: " + fileMap[i]);
         var sql = readFile(fileMap[i]);
         DB.insert("insert into db_version (version, filename, script) values (?, ?, ?)", [i, fileMap[i], sql]);
         DB.execute(sql);
+        timer.mark(fileMap[i]);
     }
 })()
 

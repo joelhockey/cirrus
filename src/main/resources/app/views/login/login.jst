@@ -3,6 +3,7 @@
 {if (flash.error) }
 <div class="error">${flash.error}</div>
 {/if}
+${request.getRequestURI()}
 <form method="post" action="/login">
   <div class="label">username</div>
   <input type="text" name="username" />

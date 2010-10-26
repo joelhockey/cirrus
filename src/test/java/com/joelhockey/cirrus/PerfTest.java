@@ -2,10 +2,15 @@ package com.joelhockey.cirrus;
 
 import java.io.IOException;
 
+import javax.naming.InitialContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import org.hsqldb.jdbc.jdbcDataSource;
+
+import com.mchange.v2.c3p0.DataSources;
 
 public class PerfTest implements Runnable {
     private int its;
@@ -43,6 +48,7 @@ public class PerfTest implements Runnable {
 
     private static void test(int its, int threads, String test, HttpServlet servlet, String path) throws Exception {
         MockServletConfig config = new MockServletConfig();
+        config.params.put("dbname", "jdbc/cirrus");
         servlet.init(config);
 
         Runtime.getRuntime().gc();
@@ -88,14 +94,20 @@ public class PerfTest implements Runnable {
     }
 
     public static void main(String[] args) throws Exception {
-        int ITS = 1000000;
+        InitialContext ic = new InitialContext();
+        jdbcDataSource ds = new jdbcDataSource();
+        ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus");
+        ds.setUser("sa");
+        ic.bind("jdbc/cirrus", DataSources.pooledDataSource(ds));
+
+        int ITS = 10000;
         HttpServlet javaServlet = new JavaServlet();
 //        test(ITS, 1, "java", javaServlet, "");
 //        test(ITS, 2, "java", javaServlet, "");
 
         HttpServlet jsServlet = new CirrusServlet();
 //        test(ITS, 1, "js", jsServlet, "/");
-        test(ITS, 1, "js", jsServlet, "/test/hello");
+        test(ITS, 10, "js", jsServlet, "/test/hello");
 //        test(ITS, 2, "js", jsServlet, "/test/hello");
 
 

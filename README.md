@@ -21,7 +21,6 @@ The directory layout for a cirrus application 'example' is:
     example/WEB-INF/app/cirrus.js -- main logic to dispath requests
     example/WEB-INF/app/jst.js -- cirrus templates parser
     example/WEB-INF/app/controllers -- controllers in this dir
-    example/WEB-INF/app/controllers/pub.js -- handles static content
     example/WEB-INF/app/controlelrs/example.js -- example controller
     example/WEB-INF/app/views/ -- views in subdirs
     example/WEB-INF/app/views/example -- views for example controller
@@ -48,7 +47,7 @@ will use the view app/views/example/hello.jst.
 
 ### Cirrus Controller example
 
-    var example = {
+    controllers.example = {
         hello : function(req, res) {
             this.a = [x * 2 for each (x in [0,1,2])];
             jst(this);
@@ -68,8 +67,8 @@ controller and view:
 * path - url path
 * method - http method (upper case)
 * params - object with parameters
-* req - HttpServletRequest object
-* res - HttpServletResponse object
+* request - HttpServletRequest object
+* response - HttpServletResponse object
 * controller - controller parsed from path ('pub' by default)
 * action - action parsed from path ('index' by default)
 * cx - context object within views
