@@ -2,16 +2,13 @@
 
 package com.joelhockey.cirrus;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-
 import javax.naming.InitialContext;
+
+import junit.framework.TestCase;
 
 import org.hsqldb.jdbc.jdbcDataSource;
 
 import com.mchange.v2.c3p0.DataSources;
-
-import junit.framework.TestCase;
 
 public class CirrusTest extends TestCase {
     private CirrusServlet servlet;

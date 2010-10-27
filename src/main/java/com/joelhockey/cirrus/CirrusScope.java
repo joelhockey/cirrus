@@ -44,6 +44,7 @@ import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.UniqueTag;
 import org.mozilla.javascript.tools.shell.Global;
 
 /**
@@ -358,6 +359,16 @@ public class CirrusScope extends ImporterTopLevel {
     }
     /** Print objects to log */
     public static void logerror(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        if (args.length > 0 && args[args.length -1] instanceof Scriptable) {
+            Scriptable lastArg = (Scriptable) args[args.length - 1];
+            Object javaException = lastArg.get("javaException", lastArg);
+            if (javaException instanceof NativeJavaObject) {
+                Object[] argsExceptLast = new Object[args.length - 1];
+                System.arraycopy(args, 0, argsExceptLast, 0, argsExceptLast.length);
+                log.error(dump(argsExceptLast), (Throwable)((NativeJavaObject)javaException).unwrap());
+                return;
+            }
+        }
         log.error(dump(args));
     }
 
@@ -407,10 +418,13 @@ public class CirrusScope extends ImporterTopLevel {
         String action = (String) (arg2 == Undefined.instance ? get("action", this) : arg2);
         Object context = arg3;
         if (arg3 == Undefined.instance) {
-            // 'var context = cirrus.controllers[controller]'
+            // 'var context = cirrus.controllers[controller] || global()'
             Scriptable cirrus = (Scriptable) get("cirrus", this);
             Scriptable controllers = (Scriptable) cirrus.get("controllers", cirrus);
             context = controllers.get(controller, controllers);
+            if (context == UniqueTag.NOT_FOUND) {
+                context = this;
+            }
         }
 
         // reload 'jst.js'.  Clear templateCache if jst.js has changed
@@ -425,6 +439,7 @@ public class CirrusScope extends ImporterTopLevel {
             NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
             HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
             res.setContentType("text/html");
+System.out.println("using context: " + context);
             // call template.render(res.getWriter(), context)
             Object[] args = {Context.javaToJS(res.getWriter(), template), context};
             ScriptableObject.callMethod(cx, template, "render", args);

@@ -93,7 +93,7 @@ cirrus.service = function() {
         }
         response.setStatus(status);
         if (status >= 400) { // only show error page for 4xx, 5xx
-            jst("errors", String(status));
+            jst("errors", String(status), this);
         }
     } finally {
         ctlr && ctlr.after && ctlr.after();

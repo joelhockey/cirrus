@@ -18,7 +18,7 @@ var JST = {
         // split body into toks of either newline, value, opentag, closetag, text
         while (body.length > 0) {
             if ((groups = /^\/\/[^\r\n]*/.exec(body)) != null) { // comment - ignore
-            } else if ((groups = /^[ \t]*\r?\n/.exec(body)) != null) { // newline
+            } else if ((groups = /^[ \t]*(\r?\n|\r)/.exec(body)) != null) { // newline
                 toks.push({type: "newline", tok: groups[0], value: groups[0]});
             } else if ((groups = /^\$?{\/?([^\r\n{}]+)}/.exec(body)) != null) { // value, opentag, closetag
                 var type = body[0] == "$" ? "value" : body[1] == "/" ? "closetag" : "opentag";
@@ -34,7 +34,7 @@ var JST = {
         
         var text = function() {
             if (textparts.length > 0) {
-                src.push('out.write("' + textparts.join('').replace(/\r?\n/g, '\\n\\\n').replace(/"/g, '\\"') + '"); ');
+                src.push('out.write("' + textparts.join('').replace(/(\r?\n|\r)/g, '\\n\\\n').replace(/"/g, '\\"') + '"); ');
                 textparts = [];
             }
         };
