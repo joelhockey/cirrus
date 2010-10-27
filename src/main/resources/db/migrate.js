@@ -36,7 +36,6 @@
     
     // look in dir /db to find required files
     var files = getResourcePaths("/db/") || [];
-    // now check if cirrus is packaged as 
     if (!files || files.length === 0) {
         throw new java.sql.SQLException("No files found in /db/");
     }

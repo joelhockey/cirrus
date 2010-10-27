@@ -8,6 +8,10 @@ import java.sql.Statement;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+/**
+ * Wrapper to hold jdbc {@link Statement} and {@link ResultSet}.
+ * @author Joel Hockey
+ */
 public class StatementResultSet {
     private static final Log log = LogFactory.getLog(StatementResultSet.class);
     private Statement stmt;

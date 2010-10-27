@@ -12,7 +12,6 @@ import com.joelhockey.codec.JSON;
  * JSON for use in js scripts.
  * @author Joel Hockey
  */
-
 public class RhinoJSON {
     private Scriptable scope;
     public RhinoJSON(Scriptable scope) {
