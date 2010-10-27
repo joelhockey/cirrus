@@ -234,9 +234,12 @@ public class CirrusScope extends ImporterTopLevel {
     public Timer getTimer() { return timer; }
 
     /**
-     * HTML escape
+     * HTML escape.  If writer included, escaped string written to writer
+     * and empty string returned, else escaped string returned
      * @param s string to escape
      * @param writer optional writer
+     * @param if writer included, escaped string written to writer and empty
+     * string returned, else escaped string returned
      * @throws IOException if error
      */
     public String h(String s, Object writer) throws IOException {
