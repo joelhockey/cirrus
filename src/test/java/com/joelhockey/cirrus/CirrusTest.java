@@ -2,9 +2,14 @@
 
 package com.joelhockey.cirrus;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 import javax.naming.InitialContext;
 
 import org.hsqldb.jdbc.jdbcDataSource;
+
+import com.mchange.v2.c3p0.DataSources;
 
 import junit.framework.TestCase;
 
@@ -20,7 +25,7 @@ public class CirrusTest extends TestCase {
         jdbcDataSource ds = new jdbcDataSource();
         ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus");
         ds.setUser("sa");
-        ic.bind("jdbc/cirrus", ds);
+        ic.bind("jdbc/cirrus", DataSources.pooledDataSource(ds));
 
         sconf = new MockServletConfig();
         sconf.params.put("dbname", "jdbc/cirrus");
@@ -47,7 +52,5 @@ public class CirrusTest extends TestCase {
         servlet.service(req, res);
         String response = res.getResponse();
         assertTrue("Expected res: 'Hello...', got: [" + response + "]", response.contains("hello page"));
-
-//        System.out.println(res.getResponse());
     }
 }

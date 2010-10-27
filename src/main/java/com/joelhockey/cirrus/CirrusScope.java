@@ -404,7 +404,9 @@ public class CirrusScope extends ImporterTopLevel {
         String action = (String) (arg2 == Undefined.instance ? get("action", this) : arg2);
         Object context = arg3;
         if (arg3 == Undefined.instance) {
-            Scriptable controllers = (Scriptable) get("controllers", this);
+            // 'var context = cirrus.controllers[controller]'
+            Scriptable cirrus = (Scriptable) get("cirrus", this);
+            Scriptable controllers = (Scriptable) cirrus.get("controllers", cirrus);
             context = controllers.get(controller, controllers);
         }
 
@@ -486,11 +488,10 @@ public class CirrusScope extends ImporterTopLevel {
         // execute compiled JST code in this scope
         entry.object.exec(cx, this);
 
-        // return JST.templates[name]
+        // return 'JST.templates[name]'
         ScriptableObject jstObj = (ScriptableObject) get("JST", this);
         ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
-        Function f = (Function) templates.get(name, templates);
-        NativeObject template = (NativeObject) f.construct(cx, this, new Object[0]);
+        NativeObject template = (NativeObject) templates.get(name, templates);
         result = new CacheEntry<NativeObject>(entry.lastModified,
                 entry.lastChecked, template);
         templateCache.put(path, result);

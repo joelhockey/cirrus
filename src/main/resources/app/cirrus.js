@@ -1,5 +1,7 @@
 // Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
 
+var cirrus = cirrus || {controllers: {}};
+
 /**
  * Dispatch request.
  * Existing global vars:
@@ -14,7 +16,7 @@
  * - controller
  * - action
  */
-var cirrus = function() {
+cirrus.service = function() {
     flash = {};
     method = String(request.getMethod());
     params = {};
@@ -36,7 +38,7 @@ var cirrus = function() {
     }
 
     try {
-        var ctlr = controllers[controller];
+        var ctlr = this.controllers[controller];
 
         if (!ctlr) {
             logwarn("warning, no controller defined for path: " + path);
@@ -96,9 +98,10 @@ var cirrus = function() {
     } finally {
         ctlr && ctlr.after && ctlr.after();
     }
-}
+};
 
-// set publicPaths - this lets us know when we have static files to serve
+// publicPaths contains all dirs and files in public root
+// if first part of path matches one of these, then we use public controller
 cirrus.publicPaths = {};
 getResourcePaths("/public/").forEach(function(path) {
     var part = path.split("/")[2];
@@ -106,10 +109,8 @@ getResourcePaths("/public/").forEach(function(path) {
     cirrus.publicPaths[part] = part;
 });
 
-// controllers
-var controllers = controllers || {};
 // public controller serves static content in /public/
-controllers["public"] = {
+cirrus.controllers["public"] = {
     getLastModified: function () {
         return fileLastModified("/public" + path);
     },
@@ -129,5 +130,14 @@ controllers["public"] = {
                 throw 404;
             }
         }
+    }
+}
+
+// add some global helpers
+if (typeof Object.create !== "function") {
+    Object.create = function(o) {
+        function F() {}
+        F.prototype = o;
+        return new F();
     }
 }

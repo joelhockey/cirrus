@@ -1,5 +1,5 @@
 
-CONTROLLERS.user = {
+cirrus.controllers.user = {
     before : function () {
         
     },

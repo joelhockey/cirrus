@@ -19,6 +19,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeJavaObject;
+import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
@@ -125,8 +126,8 @@ public class CirrusServlet extends HttpServlet {
 
     /**
      * Forward requests to WEB-INF/app/cirrus.js.
-     * Puts 'DB', {@link HttpServletRequest} as 'req', and
-     * {@link HttpServletResponse} as 'res' into JS scope.
+     * Puts 'DB', {@link HttpServletRequest} as 'request', and
+     * {@link HttpServletResponse} as 'response' into JS scope.
      */
     @Override
     public void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
@@ -139,6 +140,7 @@ public class CirrusServlet extends HttpServlet {
             CirrusScope scope = THREAD_SCOPES.get();
             scope.getTimer().start();
             scope.load("/app/cirrus.js");
+            // put request and response in global scope so they are accessible to controllers, models and views
             scope.put("request", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
             scope.put("response", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
 
@@ -148,9 +150,10 @@ public class CirrusServlet extends HttpServlet {
 
             Context cx = Context.enter();
             try {
-                Function cirrus = (Function) scope.get("cirrus", scope);
-                //cx.setOptimizationLevel(9);
-                cirrus.call(cx, scope, scope, new Object[0]);
+                // 'cirrus.service()'
+                NativeObject cirrus = (NativeObject) scope.get("cirrus", scope);
+                Function service = (Function) cirrus.get("service", cirrus);
+                service.call(cx, scope, cirrus, new Object[0]);
             } finally {
                 Context.exit();
                 // close DB

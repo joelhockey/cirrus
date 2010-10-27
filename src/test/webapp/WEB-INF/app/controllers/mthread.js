@@ -1,4 +1,4 @@
-var mthread = {
+cirrus.controllers.mthread = {
     doGet: function(req, res) {
 	    java.lang.Thread.sleep(1000)
 	    print('after 1 s, req.getParameter(p) ' + req.getParameter('p') + ', params.p ' + params.p)

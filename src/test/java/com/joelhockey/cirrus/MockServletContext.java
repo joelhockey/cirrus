@@ -3,7 +3,6 @@ package com.joelhockey.cirrus;
 import java.io.File;
 import java.io.InputStream;
 import java.net.MalformedURLException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -17,7 +16,12 @@ import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 
 public class MockServletContext implements ServletContext {
-    public Map<String, String> attribs = new HashMap<String, String>();
+    public Map<String, Object> attribs = new HashMap<String, Object>();
+    {
+        File servletTemp = new File("target/servlet-temp");
+        servletTemp.mkdir();
+        attribs.put("javax.servlet.context.tempdir", servletTemp);
+    }
 
     public Object getAttribute(String key) { return attribs.get(key); }
     public Enumeration getAttributeNames() { throw new UnsupportedOperationException(); }

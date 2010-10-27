@@ -3,7 +3,9 @@
 var JST = {
     templates : {},
     parse : function (body, name) {
-        var src = ['JST.templates["' + name + '"] = function() {}; '];
+        // First line creates template object.  If template declares prototype,
+        // it is replaced with JST.templates[name] = Object.create(JST.templates[proto])
+        var src = ['JST.templates["' + name + '"] = {}; '];
         var tagstack = [];
         var line = 1;
         var linepos = 1;
@@ -81,14 +83,15 @@ var JST = {
             // open tag
             } else if (tok.type === "opentag") {
                 if (tok.words[0] === "prototype") {
+                    if (src.length !== 1) { error("prototype only allowed as first tag"); }
                     if (tok.words.length !== 2) { error("invalid tag format: " + tok.tok); }
                     text();
-                    src.push('JST.templates["' + name + '"].prototype = new JST.templates["' + tok.words[1] + '"](); ');
+                    src[0] = 'JST.templates["' + name + '"] = Object.create(JST.templates["' + tok.words[1] + '"]); ';
                 } else if (tok.words[0] === "function") {
                     if (tok.words.length !== 2) { error("invalid tag format: " + tok.tok); }
                     fcount++;
                     text();
-                    src.push('if (typeof JST.templates["' + name + '"].prototype.' + tok.words[1] + ' === "undefined") { JST.templates["' + name + '"].prototype.' + tok.words[1] + ' = function (out, cx) { with (cx) { ');
+                    src.push('if (!JST.templates["' + name + '"].hasOwnProperty("' + tok.words[1] + '")) { JST.templates["' + name + '"].' + tok.words[1] + ' = function (out, cx) { with (cx) { ');
                     tagstack.push(tok.value); // push 'function <fname>'
                 } else if (tok.words[0] === "if") {
                     text();
