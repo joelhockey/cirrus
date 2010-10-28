@@ -5,14 +5,15 @@ var cirrus = cirrus || {controllers: {}};
 /**
  * Dispatch request.
  * Existing global vars:
- * - request HttpServletRequest
- * - response HttpServletResponse
- * Create global vars (they aren't really that evil):
+ * - servletConfig javax.servlet.ServletConfig
+ * - servletContext javax.servlet.ServletContext
+ * - request javax.servlet.http.HttpServletRequest
+ * - response javax.servlet.http.HttpServletResponse
+ * Create global vars:
  * - flash
  * - method
  * - path
  * - params
- * - pathdirs
  * - controller
  * - action
  */
@@ -26,7 +27,7 @@ cirrus.service = function() {
     }
 
     path = String(request.getRequestURI());
-    pathdirs = path.split("/");
+    var pathdirs = path.split("/");
     controller = pathdirs[1];
     action = pathdirs[2] || "index";
     

@@ -44,7 +44,6 @@ import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
-import org.mozilla.javascript.UniqueTag;
 import org.mozilla.javascript.tools.shell.Global;
 
 /**
@@ -422,7 +421,7 @@ public class CirrusScope extends ImporterTopLevel {
             Scriptable cirrus = (Scriptable) get("cirrus", this);
             Scriptable controllers = (Scriptable) cirrus.get("controllers", cirrus);
             context = controllers.get(controller, controllers);
-            if (context == UniqueTag.NOT_FOUND) {
+            if (context == Scriptable.NOT_FOUND) {
                 context = this;
             }
         }
@@ -439,7 +438,6 @@ public class CirrusScope extends ImporterTopLevel {
             NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
             HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
             res.setContentType("text/html");
-System.out.println("using context: " + context);
             // call template.render(res.getWriter(), context)
             Object[] args = {Context.javaToJS(res.getWriter(), template), context};
             ScriptableObject.callMethod(cx, template, "render", args);
