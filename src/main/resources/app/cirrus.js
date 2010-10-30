@@ -27,28 +27,29 @@ cirrus.service = function() {
     }
 
     path = String(request.getRequestURI());
+    
     var pathdirs = path.split("/");
-    controller = pathdirs[1];
+    // use 'index' as default controller and action
+    controller = pathdirs[1] || "index";
     action = pathdirs[2] || "index";
     
-    // use public controller if no matches or file is in public
-    if (!controller || cirrus.publicPaths[controller]) {
+    // use public controller if path is in public dir
+    if (cirrus.publicPaths[controller]) {
         controller = "public";
-    } else {
-        load("/app/controllers/" + controller + ".js");
     }
 
+    var ctlr;
     try {
-        var ctlr = this.controllers[controller];
-
-        if (!ctlr) {
+        try {
+            load("/app/controllers/" + controller + ".js");
+            ctlr = this.controllers[controller];
+            // call before
+            if (ctlr.before && ctlr.before() === false) {
+                return; // return early, request fully serviced
+            }
+        } catch (e) {
             logwarn("warning, no controller defined for path: " + path);
-            throw 404; // not found
-        }
-
-        // call before
-        if (ctlr.before && ctlr.before() === false) {
-            return; // return early, request fully serviced
+            throw 404;
         }
 
         // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
@@ -109,30 +110,6 @@ getResourcePaths("/public/").forEach(function(path) {
     log("public path: " + part)
     cirrus.publicPaths[part] = part;
 });
-
-// public controller serves static content in /public/
-cirrus.controllers["public"] = {
-    getLastModified: function () {
-        return fileLastModified("/public" + path);
-    },
-    GET: {
-        index: function() {
-            response.sendRedirect("/login");
-        },
-        $: function () {
-            try {
-                // set Content-Type
-                var contentType = servletContext.getMimeType(path);
-                response.setContentType(contentType);
-                log("using Content-Type: " + contentType + ", for file: " + path);
-                readFile("/public" + path, response.getOutputStream());
-            } catch (e) {
-                logwarn("error sending static file: " + path, e);
-                throw 404;
-            }
-        }
-    }
-}
 
 // add some global helpers
 if (typeof Object.create !== "function") {
