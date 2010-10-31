@@ -6,10 +6,13 @@ package com.joelhockey.cirrus;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
 
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
@@ -29,48 +32,6 @@ import org.mozilla.javascript.WrapFactory;
  * @author Joel Hockey
  */
 public class RhinoJava extends WrapFactory {
-
-    /**
-     * Convert Java (Map, Collection) to Rhino (Object, Array).
-     * @param obj java object.
-     * @param scope optional scope - required for NativeJavaArray
-     * @return rhino object
-     */
-    public static Object java2rhino(Scriptable scope, Object obj) {
-        if (obj == null || obj == Undefined.instance || obj instanceof String
-                || obj instanceof Number || obj instanceof Boolean) {
-            return obj;
-        } else if (obj instanceof Map) {
-            return java2rhinoMap(scope, (Map) obj);
-        } else if (obj instanceof Collection) {
-            return java2rhinoCollection(scope, (Collection) obj);
-        } else if (obj instanceof Object[]) {
-            return java2rhinoCollection(scope, Arrays.asList(obj));
-        } else if (obj.getClass().isArray()) {
-            return new NativeJavaArray(scope, obj);
-        }
-        return obj;
-    }
-
-    public static NativeObject java2rhinoMap(Scriptable scope, Map map) {
-        NativeObject no = new NativeObject();
-        ScriptRuntime.setObjectProtoAndParent(no, scope);
-        for (Iterator it = map.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry entry = (Map.Entry) it.next();
-            no.defineProperty(entry.getKey().toString(), java2rhino(scope, entry.getValue()), ScriptableObject.EMPTY);
-        }
-        return no;
-    }
-
-    public static NativeArray java2rhinoCollection(Scriptable scope, Collection col) {
-        NativeArray na = new NativeArray(col.size());
-        ScriptRuntime.setObjectProtoAndParent(na, scope);
-        int i = 0;
-        for (Iterator it = col.iterator(); it.hasNext(); ) {
-            na.put(i++, na, java2rhino(scope, it.next()));
-        }
-        return na;
-    }
 
     /**
      * Convert Rhino (Object, Array) to Java (Map, List), or unwrap
@@ -114,11 +75,205 @@ public class RhinoJava extends WrapFactory {
     public Scriptable wrapAsJavaObject(Context cx, Scriptable scope,
             Object javaObject, Class<?> staticType) {
         if (javaObject instanceof Map) {
-            return java2rhinoMap(scope, (Map) javaObject);
+            return new RhinoMap(scope, (Map) javaObject);
+        } else if (javaObject instanceof List) {
+            return new RhinoList(scope, (List) javaObject);
         } else if (javaObject instanceof Collection) {
-            return java2rhinoCollection(scope, (Collection) javaObject);
+            return new RhinoCollection(scope, (Collection) javaObject);
+        } else if (javaObject instanceof Date) {
+            return cx.newObject(scope, "Date", new Object[] {((Date) javaObject).getTime()});
         } else {
             return new NativeJavaObject(scope, javaObject, staticType);
         }
+    }
+
+
+    public static abstract class RhinoAbstractCollection implements Scriptable {
+        protected Scriptable scope;
+        protected Collection collection;
+        protected Scriptable prototype;
+        public RhinoAbstractCollection(Scriptable scope, Collection collection) {
+            this.scope = scope;
+            this.collection = collection;
+            this.prototype = ScriptableObject.getClassPrototype(scope, "Object");
+        }
+        public Object get(String name, Scriptable start) {
+            if ("length".equals(name) ) {
+                return collection.size();
+            }
+            return collection.contains(name) ? name : Scriptable.NOT_FOUND;
+        }
+        public Object get(int index, Scriptable start) {
+            return collection.contains(index) ? index : Scriptable.NOT_FOUND;
+        }
+        public boolean has(String name, Scriptable start) {
+            return collection.contains(name);
+        }
+        public boolean has(int index, Scriptable start) {
+            return collection.contains(index);
+        }
+        public void put(String name, Scriptable start, Object value) {
+            collection.add(name);
+        }
+        public void put(int index, Scriptable start, Object value) {
+            collection.add(index);
+        }
+        public void delete(String name) {
+            collection.remove(name);
+        }
+        public void delete(int index) {
+            collection.remove(index);
+        }
+        public Scriptable getPrototype() {
+            return prototype;
+        }
+        public void setPrototype(Scriptable prototype) {}
+        public Scriptable getParentScope() {
+            return scope;
+        }
+        public void setParentScope(Scriptable parent) {}
+        public Object[] getIds() {
+            return collection.toArray();
+        }
+        public Object getDefaultValue(Class<?> hint) {
+            if (hint == null || hint == String.class) {
+                return collection.toString();
+            } else if (hint == Number.class) {
+                return collection.size();
+            } else if (hint == Boolean.class) {
+                return collection.size() > 0;
+            } else {
+                throw Context.reportRuntimeError(
+                        ScriptRuntime.getMessage0("msg.default.value")
+                        + " Unsupported hint class: " + hint);
+            }
+        }
+        public boolean hasInstance(Scriptable instance) {
+            return false;
+        }
+    }
+
+    public static class RhinoCollection extends RhinoAbstractCollection implements Collection {
+        public RhinoCollection(Scriptable scope, Collection collection) {
+            super(scope, collection);
+        }
+        public String getClassName() {
+            return "RhinoCollection";
+        }
+
+        // java.util.Collection
+        public int size() { return collection.size(); }
+        public boolean isEmpty() { return collection.isEmpty(); }
+        public boolean contains(Object o) { return collection.contains(o); }
+        public Iterator iterator() { return collection.iterator(); }
+        public Object[] toArray() { return collection.toArray(); }
+        public Object[] toArray(Object[] a) { return collection.toArray(a); }
+        public boolean add(Object e) { return collection.add(e); }
+        public boolean remove(Object o) { return collection.remove(o); }
+        public boolean containsAll(Collection c) { return collection.containsAll(c); }
+        public boolean addAll(Collection c) { return collection.addAll(c); }
+        public boolean removeAll(Collection c) { return collection.removeAll(c); }
+        public boolean retainAll(Collection c) { return collection.retainAll(c); }
+        public void clear() { collection.clear(); }
+    }
+
+    public static class RhinoMap extends RhinoAbstractCollection implements Map {
+        private Map map;
+        public RhinoMap(Scriptable scope, Map map) {
+            super(scope, map.keySet());
+            this.map = map;
+        }
+        public String getClassName() {
+            return "RhinoMap";
+        }
+        public Object get(String name, Scriptable start) {
+            Object value = map.get(name);
+            return value == null ? Scriptable.NOT_FOUND : Context.javaToJS(value, start);
+        }
+        public Object get(int index, Scriptable start) {
+            Object value = map.get(index);
+            return value == null ? Scriptable.NOT_FOUND : Context.javaToJS(value, start);
+        }
+        public void put(String name, Scriptable start, Object value) {
+            map.put(name, value);
+        }
+        public void put(int index, Scriptable start, Object value) {
+            map.put(index, value);
+        }
+        public void delete(String name) {
+            map.remove(name);
+        }
+        public void delete(int index) {
+            map.remove(index);
+        }
+        public void setParentScope(Scriptable parent) {}
+
+        // java.util.Map
+        public int size() { return map.size(); }
+        public boolean isEmpty() { return map.isEmpty(); }
+        public void clear() { map.clear(); }
+        public boolean containsKey(Object key) { return map.containsKey(key); }
+        public boolean containsValue(Object value) { return map.containsValue(value); }
+        public Object get(Object key) { return map.get(key); }
+        public Object put(Object key, Object value) { return map.put(key, value); }
+        public void putAll(Map m) { map.putAll(m); }
+        public Set keySet() { return map.keySet(); }
+        public Collection values() { return map.values(); }
+        public Set entrySet() { return map.entrySet(); }
+        public Object remove(Object key) { return map.remove(key); }
+    }
+
+    public static class RhinoList extends RhinoCollection implements List {
+        private List list;
+        public RhinoList(Scriptable scope, List list) {
+            super(scope, list);
+            this.list = list;
+            this.prototype = ScriptableObject.getClassPrototype(scope, "Array");
+        }
+        public String getClassName() {
+            return "RhinoList";
+        }
+        public Object get(String name, Scriptable start) {
+            return "length".equals(name) ? list.size() : Scriptable.NOT_FOUND;
+        }
+        public Object get(int index, Scriptable start) {
+            if (index < 0 || index >= list.size()) {
+                return ScriptableObject.NOT_FOUND;
+            }
+            return Context.javaToJS(list.get(index), start);
+        }
+        public boolean has(String name, Scriptable start) {
+            return false;
+        }
+        public boolean has(int index, Scriptable start) {
+            return index >= 0 && index < list.size();
+        }
+        public void put(String name, Scriptable start, Object value) {}
+        public void put(int index, Scriptable start, Object value) {
+            list.add(index, value);
+        }
+        public void delete(String name) {}
+        public void delete(int index) {
+            list.remove(index);
+        }
+        public Object[] getIds() {
+            Object[] result = new Object[list.size()];
+            for (int i = 0; i < result.length; i++) {
+                result[i] = i;
+            }
+            return result;
+        }
+
+        // java.util.List
+        public boolean addAll(int index, Collection c) { return list.addAll(index, c); }
+        public Object get(int index) { return list.get(index); }
+        public Object set(int index, Object element) { return list.set(index, element); }
+        public void add(int index, Object element) { list.add(index, element); }
+        public Object remove(int index) { return list.remove(index); }
+        public int indexOf(Object o) { return list.indexOf(o); }
+        public int lastIndexOf(Object o) { return list.lastIndexOf(o); }
+        public ListIterator listIterator() { return list.listIterator(); }
+        public ListIterator listIterator(int index) { return list.listIterator(index); }
+        public List subList(int fromIndex, int toIndex) { return list.subList(fromIndex, toIndex); }
     }
 }

@@ -16,9 +16,12 @@ import java.io.Writer;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -81,6 +84,7 @@ public class CirrusScope extends ImporterTopLevel {
         Context cx = Context.enter();
         initStandardObjects(cx, false);
         String[] names = {
+            "dir",
             "fileLastModified",
             "getResource",
             "getResourcePaths",
@@ -97,8 +101,32 @@ public class CirrusScope extends ImporterTopLevel {
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
         put("timer", this, timer);
-        put("JSON", this, new com.joelhockey.cirrus.RhinoJSON(this));
+        put("JSON", this, new com.joelhockey.cirrus.RhinoJSON());
         Context.exit();
+    }
+
+    /** @return list of object properties scanning prototypes. */
+    public List<Object> dir(Object ob) {
+        List<Object> result = new ArrayList<Object>();
+        if (!(ob instanceof Scriptable)) {
+            return result;
+        }
+        Scriptable s = (Scriptable) ob;
+        while (true) {
+            Object[] ids = s instanceof ScriptableObject
+                ? ((ScriptableObject)s).getAllIds() : s.getIds();
+            Arrays.sort(ids);
+            for (Object id : ids) {
+                result.add(id);
+            }
+            s = s.getPrototype();
+            if (s == null) {
+                break;
+            } else {
+                result.add("->");
+            }
+        }
+        return result;
     }
 
     /**
@@ -159,6 +187,9 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if error reading files
      */
     public Set<String> getResourcePaths(String path) throws IOException {
+        if (!path.endsWith("/")) {
+            path += "/";
+        }
         // start with files in /WEB-INF/...
         Set<String> result = new HashSet<String>();
         Set<String> webinf = servletConfig.getServletContext().getResourcePaths("/WEB-INF" + path);
@@ -361,6 +392,9 @@ public class CirrusScope extends ImporterTopLevel {
         if (args.length > 0 && args[args.length -1] instanceof Scriptable) {
             Scriptable lastArg = (Scriptable) args[args.length - 1];
             Object javaException = lastArg.get("javaException", lastArg);
+            if (javaException == Scriptable.NOT_FOUND) {
+                javaException = lastArg.get("rhinoException", lastArg);
+            }
             if (javaException instanceof NativeJavaObject) {
                 Object[] argsExceptLast = new Object[args.length - 1];
                 System.arraycopy(args, 0, argsExceptLast, 0, argsExceptLast.length);
@@ -370,7 +404,6 @@ public class CirrusScope extends ImporterTopLevel {
         }
         log.error(dump(args));
     }
-
     // format using printf, first arg is string, other args get substitued in
     private static String printf(Object[] args) {
         if (args == null) return null;

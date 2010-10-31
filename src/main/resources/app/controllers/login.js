@@ -12,18 +12,16 @@ cirrus.controllers.login = {
             var users = DB.selectAll("select username, salt, hashed_password from user where username=?", [params.username]);
             try {
                 var user = users[0];
-                var sha256 = com.joelhockey.jless.security.Digest.newSha256();
-                sha256.update(com.joelhockey.codec.Hex.s2b(user.salt));
-                var hash = sha256.digest(new java.lang.String(params.password).getBytes());
-                if (hash !== user.hashedPassword) {
+                var hash = com.joelhockey.jless.security.Digest.newSha256Digest().
+                    updateHex(user.salt).updateStr(params.password).digestHex();
+                if (hash != user.hashedPassword) {
                     throw [hash, user.hashedPassword, user];
                 }
-                request.getSession().put("user", user);
+                request.session.setAttribute("user", user);
                 log("user logged in: " + user.username)
-                jst("user", "list");
+                response.sendRedirect("/user/list");
             } catch (e) {
-log(e)
-                flash.errors = "invalid username / password";
+                flash.error = "invalid username / password";
                 jst("login");
             }
         },

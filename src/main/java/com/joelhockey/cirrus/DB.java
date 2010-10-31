@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -16,24 +18,35 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.sql.DataSource;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.mozilla.javascript.NativeArray;
-import org.mozilla.javascript.NativeObject;
-import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.Scriptable;
 
 import com.joelhockey.codec.Hex;
 import com.joelhockey.codec.JSON;
 
 public class DB {
-    private final Log log = LogFactory.getLog(DB.class);
+    private static final Log log = LogFactory.getLog(DB.class);
     private static final Object[] EMPTY = null;
-    private Scriptable scope;
+    private static final Map<Integer, String> TYPES = new HashMap<Integer, String>();
+
+    static {
+        try {
+            for (Field f : Types.class.getDeclaredFields()) {
+                // only put 'public static final int' in map
+                if (f.getType() == int.class && Modifier.isPublic(f.getModifiers())
+                        && Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers())) {
+                    TYPES.put(f.getInt(null), f.getName());
+                }
+            }
+        } catch (Exception e) {} // ignore
+    }
+
     private Connection dbconn;
 
     /**
@@ -42,8 +55,7 @@ public class DB {
      * @param dataSource data source
      * @throws SQLException if error getting connection from data source
      */
-    public DB(Scriptable scope, DataSource dataSource) throws SQLException {
-        this.scope = scope;
+    public DB(DataSource dataSource) throws SQLException {
         this.dbconn = dataSource.getConnection();
     }
 
@@ -223,14 +235,14 @@ public class DB {
     }
 
     /**
-     * Return all rows converted to JS object
+     * Return all rows
      * @param sql sql select statement with '?' for params
      * @param params params
-     * @return js NativeArray of NativeObject
+     * @return List&lt;Map&lt;String, Object>> list of rows
      * @throws SQLException if sql error
      */
-    public NativeArray selectAll(String sql, Object... params) throws SQLException {
-        List<NativeObject> result = new ArrayList<NativeObject>();
+    public List<Map<String, Object>> selectAll(String sql, Object... params) throws SQLException {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         boolean ok = false;
         StatementResultSet stmtRs = select(sql, params);
         long start = System.currentTimeMillis();
@@ -238,9 +250,8 @@ public class DB {
             ResultSet rs = stmtRs.getResultSet();
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
-                NativeObject obj = new NativeObject();
-                ScriptRuntime.setObjectProtoAndParent(obj, scope);
-                result.add(obj);
+                Map<String, Object> row = new HashMap<String, Object>();
+                result.add(row);
                 // sql stuff is 1-based!
                 for (int i = 1; i <= meta.getColumnCount(); i++) {
                     Object value = null;
@@ -254,8 +265,13 @@ public class DB {
                     case Types.VARCHAR:
                         value = rs.getString(i);
                         break;
+                    case Types.TIMESTAMP:
+                        value = new java.util.Date(rs.getTimestamp(i).getTime());
+                        break;
                     default:
-                        throw new SQLException("unrecognised type: " + meta.getColumnType(i));
+                        int type = meta.getColumnType(i);
+                        throw new SQLException("unrecognised type: " + type
+                                + "(" + TYPES.get(type) + ")");
                     }
                     StringBuilder label = new StringBuilder();
                     String[] parts = meta.getColumnName(i).split("_");
@@ -266,7 +282,7 @@ public class DB {
                         }
                         label.append(part);
                     }
-                    obj.put(label.toString(), scope, value);
+                    row.put(label.toString(), value);
                 }
             }
             ok = true;
@@ -275,9 +291,7 @@ public class DB {
             long timeTaken = System.currentTimeMillis() - start;
             log.debug(format("sql: selectAll : %s : %05d : %d", ok ? "ok" : "error", timeTaken, result.size()));
         }
-        NativeArray na = new NativeArray(result.toArray());
-        ScriptRuntime.setObjectProtoAndParent(na, scope);
-        return na;
+        return result;
     }
 
     /**

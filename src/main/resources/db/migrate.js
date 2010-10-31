@@ -41,17 +41,17 @@
     }
     log("files in '/db/':", files)
     var fileMap = {};
-    for (var i = 0; i < files.length; i++) {
+    for (var file in files) {
         // check for filename format <nnn>_<desc>.sql
         var match;
-        if (match = /^\/db\/(\d{3})_.*\.sql$/.exec(files[i])) {
+        if (match = /^\/db\/(\d{3})_.*\.sql$/.exec(file)) {
             var filenum = parseInt(match[1]);
             if (filenum > dbversion && filenum <= version) {
                 // check for duplicates
                 if (fileMap[filenum]) {
                     throw new java.sql.SQLException("Found duplicate file for migration: " + fileMap[filenum] + ", " + files[i]);
                 }
-                fileMap[filenum] = files[i];
+                fileMap[filenum] = file;
             }
         }
     }

@@ -43,13 +43,17 @@ cirrus.service = function() {
         try {
             load("/app/controllers/" + controller + ".js");
             ctlr = this.controllers[controller];
-            // call before
-            if (ctlr.before && ctlr.before() === false) {
-                return; // return early, request fully serviced
+            if (!ctlr) {
+                throw null;
             }
         } catch (e) {
             logwarn("warning, no controller defined for path: " + path);
             throw 404;
+        }
+
+        // call before
+        if (ctlr.before && ctlr.before() === false) {
+            return; // return early, request fully serviced
         }
 
         // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
@@ -69,21 +73,19 @@ cirrus.service = function() {
     
         // find method handler or 405
         var methodHandler = ctlr[method] || ctlr.$;
-        if (methodHandler) {
-            var actionHandler = methodHandler[action] || methodHandler.$;
-            var args = pathdirs.slice(3);
-            if (actionHandler instanceof Function && actionHandler.arity === args.length) {
-                actionHandler.apply(ctlr, args);
-            } else {
-                logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
-                throw 404;
-            }
-        } else {
+        if (!methodHandler) {
             // return 405 Method Not Allowed
             logwarn("warning, no method handler for path: " + path);
             response.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
             throw 405;
         }
+        var actionHandler = methodHandler[action] || methodHandler.$;
+        var args = pathdirs.slice(3);
+        if (!(actionHandler instanceof Function) || actionHandler.arity !== args.length) {
+            logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
+            throw 404;
+        }
+        actionHandler.apply(ctlr, args);
 
     // error - set status and use error templates
     } catch (e) {
@@ -105,11 +107,11 @@ cirrus.service = function() {
 // publicPaths contains all dirs and files in public root
 // if first part of path matches one of these, then we use public controller
 cirrus.publicPaths = {};
-getResourcePaths("/public/").forEach(function(path) {
+for (var path in getResourcePaths("/public/")) {
     var part = path.split("/")[2];
     log("public path: " + part)
     cirrus.publicPaths[part] = part;
-});
+}
 
 // add some global helpers
 if (typeof Object.create !== "function") {

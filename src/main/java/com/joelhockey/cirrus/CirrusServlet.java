@@ -36,13 +36,13 @@ public class CirrusServlet extends HttpServlet {
     private static DataSource DATA_SOURCE;
     private static ServletConfig SERVLET_CONFIG;
     private static final RhinoJava WRAP_FACTORY = new RhinoJava();
-    private static ThreadLocal<CirrusScope> THREAD_SCOPES = new ThreadLocal<CirrusScope>() {
+    static ThreadLocal<CirrusScope> THREAD_SCOPES = new ThreadLocal<CirrusScope>() {
         @Override
         protected CirrusScope initialValue() {
             return new CirrusScope(SERVLET_CONFIG);
         }
     };
-    private static ThreadLocal<Main> DEBUGGERS = new ThreadLocal<Main>() {
+    static ThreadLocal<Main> DEBUGGERS = new ThreadLocal<Main>() {
         @Override
         protected Main initialValue() {
             // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
@@ -108,7 +108,7 @@ public class CirrusServlet extends HttpServlet {
         CirrusScope scope = THREAD_SCOPES.get();
         scope.getTimer().start();
         try {
-            db = new DB(scope, DATA_SOURCE);
+            db = new DB(DATA_SOURCE);
             scope.put("DB", scope, db);
             scope.load("/db/migrate.js");
             scope.delete("DB");
@@ -145,7 +145,7 @@ public class CirrusServlet extends HttpServlet {
             scope.put("response", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
 
             // set up DB
-            DB db = new DB(scope, DATA_SOURCE);
+            DB db = new DB(DATA_SOURCE);
             scope.put("DB", scope, db);
 
             Context cx = Context.enter();
