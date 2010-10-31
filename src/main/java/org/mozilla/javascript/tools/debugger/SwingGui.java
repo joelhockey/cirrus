@@ -43,6 +43,7 @@ package org.mozilla.javascript.tools.debugger;
 
 import javax.swing.*;
 import javax.swing.text.*;
+import javax.swing.border.LineBorder;
 import javax.swing.event.*;
 import javax.swing.table.*;
 import java.awt.EventQueue;
@@ -1446,9 +1447,17 @@ class FileTextArea
      */
     @Override
     public boolean getScrollableTracksViewportWidth() {
-        // if our text is narrower than surrounding FileWindow, then stretch
-        // if our text is wider, then don't wrap text - allow horizontal scroll
-        return getWidth() < w.getWidth();
+        // allow scroll (i.e. return false) when this is wider than parent
+        return getWidth() < getParent().getWidth();
+    }
+
+    /**
+     * Required to allow horizontal scroll.
+     */
+    @Override
+    public void setSize(Dimension d) {
+        // if parent viewport is wider than this, then stretch this
+        super.setSize(Math.max(getParent().getWidth(), d.width), d.height);
     }
 
     /**
