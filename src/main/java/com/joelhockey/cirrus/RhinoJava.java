@@ -87,7 +87,10 @@ public class RhinoJava extends WrapFactory {
         }
     }
 
-
+    /**
+     * Abstract class that wraps {@link Collection} and implements
+     * most of {@link Scriptable}.
+     */
     public static abstract class RhinoAbstractCollection implements Scriptable {
         protected Scriptable scope;
         protected Collection collection;
@@ -153,6 +156,9 @@ public class RhinoJava extends WrapFactory {
         }
     }
 
+    /**
+     * Wraps {@link Collection} to also implement {@link Scriptable}.
+     */
     public static class RhinoCollection extends RhinoAbstractCollection implements Collection {
         public RhinoCollection(Scriptable scope, Collection collection) {
             super(scope, collection);
@@ -177,6 +183,9 @@ public class RhinoJava extends WrapFactory {
         public void clear() { collection.clear(); }
     }
 
+    /**
+     * Wraps {@link Map} to also implement {@link Scriptable}.
+     */
     public static class RhinoMap extends RhinoAbstractCollection implements Map {
         private Map map;
         public RhinoMap(Scriptable scope, Map map) {
@@ -223,6 +232,9 @@ public class RhinoJava extends WrapFactory {
         public Object remove(Object key) { return map.remove(key); }
     }
 
+    /**
+     * Wraps {@link List} to also implement {@link Scriptable}.
+     */
     public static class RhinoList extends RhinoCollection implements List {
         private List list;
         public RhinoList(Scriptable scope, List list) {
