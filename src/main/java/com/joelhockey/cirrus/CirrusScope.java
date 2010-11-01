@@ -40,7 +40,6 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ImporterTopLevel;
 import org.mozilla.javascript.JavaScriptException;
-import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Script;
@@ -59,6 +58,7 @@ import org.mozilla.javascript.tools.shell.Global;
 public class CirrusScope extends ImporterTopLevel {
     private static final long serialVersionUID = 0xDC7C4EC5275394BL;
     private static final Log log = LogFactory.getLog(CirrusScope.class);
+    private static enum LogLevel { INFO, WARN, ERROR };
 
     /** Time to wait before reloading changed js file. */
     public static final long RELOAD_WAIT = 10000;
@@ -105,7 +105,10 @@ public class CirrusScope extends ImporterTopLevel {
         Context.exit();
     }
 
-    /** @return list of object properties scanning prototypes. */
+    /**
+     * Similar to python dir() function.
+     * @return list of properties of ob prototype chain
+     */
     public List<Object> dir(Object ob) {
         List<Object> result = new ArrayList<Object>();
         if (!(ob instanceof Scriptable)) {
@@ -140,7 +143,7 @@ public class CirrusScope extends ImporterTopLevel {
     public long fileLastModified(String path) throws IOException {
             CacheEntry<Object> entry = cacheLookup(LAST_MOD_CACHE, path);
             if (entry == null) {
-                // no in cache, or stale
+                // not in cache, or stale
                 entry = new CacheEntry<Object>(
                         getResource(path).getLastModified(),
                         System.currentTimeMillis(), null);
@@ -161,6 +164,10 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if file not exists
      */
     public URLConnection getResource(String path) throws IOException {
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+
         // look in '/WEB-INF' first
         URL resource = servletConfig.getServletContext().getResource("/WEB-INF" + path);
         if (resource == null) {
@@ -187,6 +194,9 @@ public class CirrusScope extends ImporterTopLevel {
      * @throws IOException if error reading files
      */
     public Set<String> getResourcePaths(String path) throws IOException {
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
         if (!path.endsWith("/")) {
             path += "/";
         }
@@ -194,7 +204,7 @@ public class CirrusScope extends ImporterTopLevel {
         Set<String> result = new HashSet<String>();
         Set<String> webinf = servletConfig.getServletContext().getResourcePaths("/WEB-INF" + path);
         if (webinf != null) {
-            // string '/WEB-INF' from front of string
+            // strip '/WEB-INF' from front of string
             for (String webinfFile : webinf) {
                 result.add(webinfFile.substring("/WEB-INF".length()));
             }
@@ -305,6 +315,8 @@ public class CirrusScope extends ImporterTopLevel {
         // execute script in current scope
         Context cx = Context.enter();
         try {
+            // ensure we are using our WrapFactory
+            cx.setWrapFactory(CirrusServlet.WRAP_FACTORY);
             entry = cacheLookup(SCRIPT_CACHE, path);
             if (entry == null) {
                 // compile script and store in static SCRIPT_CACHE
@@ -385,25 +397,53 @@ public class CirrusScope extends ImporterTopLevel {
     }
     /** Print objects to log */
     public static void logwarn(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        log.warn(dump(args));
+        if (log.isWarnEnabled()) logImpl(LogLevel.WARN, args);
     }
     /** Print objects to log */
     public static void logerror(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        if (args.length > 0 && args[args.length -1] instanceof Scriptable) {
+        logImpl(LogLevel.ERROR, args);
+    }
+    // log with last arg converted to Throwable when detected
+    private static void logImpl(LogLevel level, Object[] args) {
+        if (args.length > 0 && args[args.length - 1] instanceof Scriptable) {
             Scriptable lastArg = (Scriptable) args[args.length - 1];
             Object javaException = lastArg.get("javaException", lastArg);
             if (javaException == Scriptable.NOT_FOUND) {
                 javaException = lastArg.get("rhinoException", lastArg);
             }
             if (javaException instanceof NativeJavaObject) {
-                Object[] argsExceptLast = new Object[args.length - 1];
-                System.arraycopy(args, 0, argsExceptLast, 0, argsExceptLast.length);
-                log.error(dump(argsExceptLast), (Throwable)((NativeJavaObject)javaException).unwrap());
-                return;
+                NativeJavaObject javaOb = (NativeJavaObject) javaException;
+                Object unwrapped = javaOb.unwrap();
+                if (unwrapped instanceof Throwable) {
+                    Throwable t = (Throwable) unwrapped;
+                    Object[] argsExceptLast = new Object[args.length - 1];
+                    System.arraycopy(args, 0, argsExceptLast, 0, argsExceptLast.length);
+                    switch (level) {
+                    case INFO:
+                        log.info(dump(argsExceptLast), t);
+                        break;
+                    case WARN:
+                        log.warn(dump(argsExceptLast), t);
+                        break;
+                    case ERROR:
+                        log.error(dump(argsExceptLast), t);
+                    }
+                    return;
+                }
             }
         }
-        log.error(dump(args));
+        switch (level) {
+        case INFO:
+            log.info(dump(args));
+            break;
+        case WARN:
+            log.warn(dump(args));
+            break;
+        case ERROR:
+            log.error(dump(args));
+        }
     }
+
     // format using printf, first arg is string, other args get substitued in
     private static String printf(Object[] args) {
         if (args == null) return null;
@@ -424,8 +464,7 @@ public class CirrusScope extends ImporterTopLevel {
                 return RhinoJSON.stringify(args[0]);
             }
         }
-        NativeArray array = new NativeArray(args);
-        return RhinoJSON.stringify(array);
+        return RhinoJSON.stringify(args);
     }
 
     /**
@@ -590,8 +629,8 @@ public class CirrusScope extends ImporterTopLevel {
 
     public static class Timer {
         private static final Log log = LogFactory.getLog("cirrus.timer");
-        private long[] times = new long[16]; // allow up to 16 marks
-        private String[] descs = new String[16];
+        private long[] times = new long[4];
+        private String[] descs = new String[4];
         private int len = 0;
         /** start timer */
         public void start() {
@@ -600,7 +639,14 @@ public class CirrusScope extends ImporterTopLevel {
         }
         /** save current time and desc to be printed at end. */
         public void mark(String desc) {
-            if (len == times.length) return;
+            if (len == times.length && len < 256) { // grow storage up to 256
+                long[] tmpTimes = new long[times.length * 2];
+                System.arraycopy(times, 0, tmpTimes, 0, times.length);
+                times = tmpTimes;
+                String[] tmpDescs = new String[descs.length * 2];
+                System.arraycopy(descs, 0, tmpDescs, 0, descs.length);
+                descs = tmpDescs;
+            }
             times[len] = System.currentTimeMillis();
             descs[len++] = desc;
         }

@@ -39,9 +39,13 @@
         <fileset dir="lib" />
       </classpath>
     </taskdef>
-    
+
     <jairusunit>
+      <!--jvmarg value="-Ddebugjs" /-->
+      <!--jvmarg value="-agentlib:jdwp=server=y,suspend=y,transport=dt_socket,address=2718" /-->
       <classpath>
+        <pathelement location="target/test-classes"/>
+        <pathelement location="target/classes"/>
         <fileset dir="lib" />
       </classpath>
       <batchtest>

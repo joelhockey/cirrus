@@ -1,10 +1,8 @@
-// Original code from http://weblog.raganwald.com/2007/07/javascript-on-jvm-in-fifteen-minutes.html
-// Updates Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
+// Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
 
 package com.joelhockey.cirrus;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
@@ -16,9 +14,7 @@ import java.util.Set;
 
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
-import org.mozilla.javascript.NativeJavaArray;
 import org.mozilla.javascript.NativeJavaObject;
-import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
@@ -27,8 +23,8 @@ import org.mozilla.javascript.WrapFactory;
 
 /**
  * Convert between Rhino and Java types.
- *
- * @author http://weblog.raganwald.com/2007/07/javascript-on-jvm-in-fifteen-minutes.html
+ * @see http://weblog.raganwald.com/2007/07/javascript-on-jvm-in-fifteen-minutes.html
+ * @see http://groups.google.com/group/mozilla.dev.tech.js-engine.rhino/browse_thread/thread/d27869954c44c355
  * @author Joel Hockey
  */
 public class RhinoJava extends WrapFactory {
@@ -39,7 +35,7 @@ public class RhinoJava extends WrapFactory {
      * @param obj rhino object
      * @return java object
      */
-    public static Object rhino2java(final Object obj) {
+    public static Object rhino2java(Object obj) {
         if (obj == Undefined.instance || obj == null) {
             return null;
         } else if (obj instanceof NativeArray) {
@@ -53,15 +49,15 @@ public class RhinoJava extends WrapFactory {
         }
     }
 
-    public static List rhino2javaNativeArray(final NativeArray na) {
-        return new ArrayList() {{
-            for (int i = 0; i < na.getLength(); ++i) {
-                add(rhino2java(na.get(i, null)));
-            }
-        }};
+    public static List rhino2javaNativeArray(NativeArray na) {
+        List result = new ArrayList();
+        for (int i = 0; i < na.getLength(); ++i) {
+            result.add(rhino2java(na.get(i, null)));
+        }
+        return result;
     }
 
-    public static Map rhino2javaScriptableObject (final ScriptableObject sObj) {
+    public static Map rhino2javaScriptableObject (ScriptableObject sObj) {
         Map result = new LinkedHashMap();
         Object[] ids = sObj.getIds();
         for (int i = 0; i < ids.length; i++) {
@@ -267,13 +263,6 @@ public class RhinoJava extends WrapFactory {
         public void delete(String name) {}
         public void delete(int index) {
             list.remove(index);
-        }
-        public Object[] getIds() {
-            Object[] result = new Object[list.size()];
-            for (int i = 0; i < result.length; i++) {
-                result[i] = i;
-            }
-            return result;
         }
 
         // java.util.List

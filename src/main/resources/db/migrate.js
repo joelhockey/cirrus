@@ -3,10 +3,13 @@
 // anonymous function to keep global scope clean
 (function() {
 
-    // *****
-    // set this value
-    var version = 1;
-    // ***** 
+    // read required version from servlet init-param
+    var param = servletConfig.getInitParameter("dbversion");
+    var version = parseInt(param);
+    if (isNaN(version)) {
+        throw new java.sql.SQLException(
+                "Invalid 'dbversion' servlet init-param: " + param);
+    }
 
     var dbversion;
     try {
@@ -14,7 +17,7 @@
         dbversion = DB.selectInt("select max(version) from db_version");
     } catch (e) {
         // error reading from 'db_version' table, try init script
-        logwarn("Error getting db version, will try and load init script: ", e);
+        logwarn("Error getting db version, will try and load init script: ", e.toString());
         var sql = readFile("/db/000_init.sql");
         DB.execute(sql);
         DB.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
@@ -33,7 +36,7 @@
     
     // move from dbversion to version
     log("doing db migration.  " + msg);
-    
+
     // look in dir /db to find required files
     var files = getResourcePaths("/db/") || [];
     if (!files || files.length === 0) {
@@ -74,4 +77,3 @@
         timer.mark(fileMap[i]);
     }
 })()
-

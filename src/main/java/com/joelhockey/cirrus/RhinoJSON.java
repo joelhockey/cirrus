@@ -15,11 +15,11 @@ public class RhinoJSON {
         return JSON.stringify(RhinoJava.rhino2java(obj));
     }
 
-    public Object parse(String json) {
+    public static Object parse(String json) {
         return JSON.parse(json);
     }
 
-    public Object parseStream(InputStream ins) {
+    public static Object parseStream(InputStream ins) {
         return JSON.parse(ins);
     }
 }

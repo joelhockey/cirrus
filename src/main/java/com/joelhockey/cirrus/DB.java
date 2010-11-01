@@ -56,7 +56,7 @@ public class DB {
      * @throws SQLException if error getting connection from data source
      */
     public DB(DataSource dataSource) throws SQLException {
-        this.dbconn = dataSource.getConnection();
+        dbconn = dataSource.getConnection();
     }
 
     /**
@@ -363,8 +363,7 @@ public class DB {
                     log.warn(format("More than 1 object returned for sql: %s , %s",
                             sql, JSON.stringify(params)));
                 }
-            } catch (Throwable t) {
-            } // ignore
+            } catch (Throwable t) {} // ignore
             return result;
         } finally {
             stmtRs.getStatement().close();

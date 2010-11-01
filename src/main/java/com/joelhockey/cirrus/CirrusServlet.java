@@ -35,7 +35,7 @@ public class CirrusServlet extends HttpServlet {
     private static boolean DEBUG_JS = false;
     private static DataSource DATA_SOURCE;
     private static ServletConfig SERVLET_CONFIG;
-    private static final RhinoJava WRAP_FACTORY = new RhinoJava();
+    static final RhinoJava WRAP_FACTORY = new RhinoJava();
     static ThreadLocal<CirrusScope> THREAD_SCOPES = new ThreadLocal<CirrusScope>() {
         @Override
         protected CirrusScope initialValue() {
@@ -90,11 +90,11 @@ public class CirrusServlet extends HttpServlet {
             DEBUGGERS.get();
         }
 
-        // get datasource
+        // get datasource using 'dbname' servlet init-param
         try {
             InitialContext ic = new InitialContext();
             String dbname = getServletConfig().getInitParameter("dbname");
-            log.info("Looking up jndi db: " + dbname);
+            log.info("Looking up datasource in jndi using 'dbname' servlet init-param: " + dbname);
             DATA_SOURCE = (DataSource) ic.lookup(dbname);
             // test
             Connection dbconn = DATA_SOURCE.getConnection();

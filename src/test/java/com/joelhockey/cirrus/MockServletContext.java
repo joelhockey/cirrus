@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,7 +16,11 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 
+import org.mortbay.jetty.MimeTypes;
+
 public class MockServletContext implements ServletContext {
+    private static MimeTypes MIME_TYPES = new MimeTypes();
+
     public Map<String, Object> attribs = new HashMap<String, Object>();
     {
         File servletTemp = new File("target/servlet-temp");
@@ -29,7 +34,9 @@ public class MockServletContext implements ServletContext {
     public String getInitParameter(String arg0) { throw new UnsupportedOperationException(); }
     public Enumeration getInitParameterNames() { throw new UnsupportedOperationException(); }
     public int getMajorVersion() { throw new UnsupportedOperationException(); }
-    public String getMimeType(String arg0) { throw new UnsupportedOperationException(); }
+    public String getMimeType(String filename) {
+        return MIME_TYPES.getMimeByExtension(filename).toString();
+    }
     public int getMinorVersion() { throw new UnsupportedOperationException(); }
     public RequestDispatcher getNamedDispatcher(String arg0) { throw new UnsupportedOperationException(); }
     public String getRealPath(String path) { throw new UnsupportedOperationException(); }

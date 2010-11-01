@@ -14,7 +14,7 @@
   <logger name="com.mchange"> <!-- c3p0 -->
     <level value="info"/> 
   </logger>
-  
+
   <root>
     <priority value="debug" />
     <appender-ref ref="logfile" />

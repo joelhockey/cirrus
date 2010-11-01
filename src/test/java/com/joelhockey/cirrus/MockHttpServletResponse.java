@@ -44,6 +44,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public void sendError(int arg0, String arg1) throws IOException { throw new UnsupportedOperationException(); }
     public void sendRedirect(String redirect) throws IOException {
         this.redirect = redirect;
+        status = 302;
     }
     public void setDateHeader(String header, long value) {
     	headers.put(header, dateHeaderFormat.format(new Date(value)));
@@ -55,7 +56,9 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public void flushBuffer() throws IOException { throw new UnsupportedOperationException(); }
     public int getBufferSize() { throw new UnsupportedOperationException(); }
     public String getCharacterEncoding() { throw new UnsupportedOperationException(); }
-    public String getContentType() { throw new UnsupportedOperationException(); }
+    public String getContentType() {
+        return contentType;
+    }
     public Locale getLocale() { throw new UnsupportedOperationException(); }
     public ServletOutputStream getOutputStream() throws IOException { return sos; }
     public PrintWriter getWriter() throws IOException { return pw; }
@@ -69,6 +72,8 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public void setBufferSize(int arg0) { throw new UnsupportedOperationException(); }
     public void setCharacterEncoding(String arg0) { throw new UnsupportedOperationException(); }
     public void setContentLength(int arg0) { throw new UnsupportedOperationException(); }
-    public void setContentType(String contentType) { this.contentType = contentType; }
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
     public void setLocale(Locale arg0) { throw new UnsupportedOperationException(); }
 }

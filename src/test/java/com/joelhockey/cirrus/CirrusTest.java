@@ -11,8 +11,6 @@ import junit.framework.TestCase;
 
 import org.hsqldb.jdbc.jdbcDataSource;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.NativeArray;
-import org.mozilla.javascript.NativeObject;
 
 import com.mchange.v2.c3p0.DataSources;
 
@@ -33,6 +31,7 @@ public class CirrusTest extends TestCase {
 
         sconf = new MockServletConfig();
         sconf.params.put("dbname", "jdbc/cirrus");
+        sconf.params.put("dbversion", "1");
         servlet = new CirrusServlet();
         servlet.init(sconf);
     }
@@ -41,9 +40,18 @@ public class CirrusTest extends TestCase {
         req = new MockHttpServletRequest("GET", "/");
         res = new MockHttpServletResponse();
         servlet.service(req, res);
-        assertEquals(200, res.status);
+        assertEquals(302, res.status);
+        assertEquals("/login", res.redirect);
+    }
 
-        req = new MockHttpServletRequest("GET", "/");
+    public void testFavicon() throws Exception {
+        req = new MockHttpServletRequest("GET", "/favicon.ico");
+        res = new MockHttpServletResponse();
+        servlet.service(req, res);
+        assertEquals(200, res.status);
+        assertEquals("image/x-icon", res.getContentType());
+
+        req = new MockHttpServletRequest("GET", "/favicon.ico");
         req.headers.put("If-Modified-Since", res.headers.get("Last-Modified"));
         res = new MockHttpServletResponse();
         servlet.service(req, res);
@@ -62,6 +70,7 @@ public class CirrusTest extends TestCase {
         DB db = new DB(ds);
         List<Map<String, Object>> users = db.selectAll("select * from user where username = ?", "admin");
         Map<String, Object> user = users.get(0);
+        assertEquals("admin", user.get("username"));
         System.out.println(RhinoJSON.stringify(user));
     }
 
