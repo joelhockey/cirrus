@@ -69,6 +69,7 @@ var JST = {
             // are we at end of {text?}...{/text?} or {eval}...{/eval}
             } else if ((inText || inEval) && tok.type === "closetag" && tok.value === toptag) {
                 text();
+                src.push("; ");
                 inText = inEval = false; // we are now finished 'text' or 'eval' section
             } else if (inText) { // still in text
                 textlines.push(tok);
@@ -115,7 +116,7 @@ var JST = {
                          inEval = true;
                          tagstack.push("eval");
                     } else { // inline eval
-                        src.push(tok.words.slice(1).join(" "));
+                        src.push(tok.words.slice(1).join(" ") + "; ");
                     }
                 } else if (tok.words[0].match(/^text/)) {
                     inText = true;

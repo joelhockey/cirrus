@@ -16,7 +16,8 @@ cirrus.controllers.user = {
             }
         },
         $ : function () {
-            jst("list", {users: DB.selectAll("select id, username, created_at, version from user")});
+            var users = DB.selectAll("select id, username, created_at, version from user");
+            jst("list", {users: users});
         },
     },
     

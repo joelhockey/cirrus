@@ -264,6 +264,13 @@ public class RhinoJava extends WrapFactory {
         public void delete(int index) {
             list.remove(index);
         }
+        public Object[] getIds() {
+            Object[] ids = new Object[list.size()];
+            for (int i = 0; i < list.size(); i++) {
+                ids[i] = i;
+            }
+            return ids;
+        }
 
         // java.util.List
         public boolean addAll(int index, Collection c) { return list.addAll(index, c); }
