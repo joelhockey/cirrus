@@ -1,4 +1,4 @@
-<project name="cirrus" default="war" basedir=".">
+<project name="cirrus" default="jar" basedir=".">
 
   <property name="version" value="1.0" />
 
@@ -33,7 +33,7 @@
     </copy>
   </target>
 
-  <target name="test" depends="compile-test" description="test">
+  <target name="test" depends="compile-test,no-debug" description="test">
     <taskdef name="jairusunit" classname="com.joelhockey.jairusunit.JairusUnitTask">
       <classpath>
         <fileset dir="lib" />
@@ -41,8 +41,7 @@
     </taskdef>
 
     <jairusunit>
-      <!--jvmarg value="-Ddebugjs" /-->
-      <!--jvmarg value="-agentlib:jdwp=server=y,suspend=y,transport=dt_socket,address=2718" /-->
+      <jvmarg line="-server ${debugjvm} ${suspendjvm} ${debugjs}" />
       <classpath>
         <pathelement location="target/test-classes"/>
         <pathelement location="target/classes"/>
@@ -71,11 +70,24 @@
     <delete dir="target" />
   </target>
   
-  <target name="server" description="start web server" depends="compile-test">
+  <target name="debugjs" description="turn on js debug">
+    <property name="debugjs" value="-Ddebugjs"/>
+  </target>
+  <target name="debugjvm" description="turn on jvm debug">
+    <property name="debugjvm" value="-agentlib:jdwp=server=y,suspend=n,transport=dt_socket,address=2718"/>
+  </target>
+  <target name="suspendjvm" description="turn on jvm debug">
+    <property name="suspendjvm" value="-agentlib:jdwp=server=y,suspend=y,transport=dt_socket,address=2718"/>
+  </target>
+  <target name="no-debug" description="no debug">
+    <property name="debugjs" value=""/>
+    <property name="debugjvm" value=""/>
+    <property name="suspendjvm" value=""/>
+  </target>
+  	
+  <target name="server" depends="compile-test,no-debug" description="start web server">
     <java jar="lib/runtime/js-1.7R2.jar" fork="true">
-      <jvmarg value="-server" />
-      <!--jvmarg value="-Ddebugjs" /-->
-      <!--jvmarg value="-agentlib:jdwp=server=y,suspend=n,transport=dt_socket,address=2718" /-->
+      <jvmarg line="-server ${debugjvm} ${suspendjvm} ${debugjs}" />
       <arg value="script/server.js" />
     </java>
   </target>
