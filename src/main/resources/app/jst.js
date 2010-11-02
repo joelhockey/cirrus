@@ -24,17 +24,14 @@ var JST = {
         // parser puts tokens in 'toks' array.
         // Each token is an object containing information used by generator 
         // Format of token:
-        //  - type: comment|newline|value|opentag|closetag|text
+        //  - type: newline|value|opentag|closetag|text
         //  - tok: exact matched text, e.g. '{for (var item in items)}'
         //  - value: value of token, e.g. 'for'
         //  - words: value.split(), used only in opentag and closetag,
         //     e.g. ['for','(var','item','in','items)'] 
         while (body.length > 0) {
-            // match single line comment '//'
-            if ((groups = /^\s*\/\/.*?(\r?\n|\r)/.exec(body)) != null) {
-                toks.push({type: "comment", tok: groups[0], value: groups[0]});
             // newline
-            } else if ((groups = /^[ \t]*(\r?\n|\r)/.exec(body)) != null) { 
+            if ((groups = /^[ \t]*(\r?\n|\r)/.exec(body)) != null) { 
                 toks.push({type: "newline", tok: groups[0], value: groups[0]});
                 
             // value, opentag, closetag
@@ -49,10 +46,10 @@ var JST = {
             } else if ((groups = /^[^\r\n${]+/.exec(body)) != null ||
                     (groups = /^[^\r\n]+/.exec(body)) != null) {
                 toks.push({type: "text", tok: groups[0], value: groups[0]});
-                
-            // ignore anything else
+            
+            // parse error should never happen
             } else {
-                continue;
+                throw new Error("Could not parse: " + body);
             }
             body = body.substring(groups[0].length);
         }
@@ -70,8 +67,8 @@ var JST = {
                     ", tagstack: [" + tagstack.join(" > ") + "]");
         };
 
-        // skip blank lines and comments at start
-        while (toks.length > 0 && toks[0].type.match(/newline|comment/)) {
+        // skip blank lines at start
+        while (toks.length > 0 && toks[0].type === "newline") {
             src.push(toks.shift().tok)
         }
         
@@ -86,10 +83,9 @@ var JST = {
         }
         
         for each (tok in toks) {
-//print('tok: ' + tok.type + ", " + (tok.type == "newline" ? "" : tok.value))
             var toptag = tagstack[tagstack.length - 1];
             // newline
-            if (tok.type.match(/newline|comment/)) {
+            if (tok.type === "newline") {
                 line++;
                 // pos increased at bottom of for-loop
                 linepos = 1 - tok.value.length; 

@@ -1,17 +1,17 @@
-// comments at top of file
+{eval /* comments at top of file */ }
 {function foo}
   hello
   world
 {/function foo}
 -----
-// comments at top of file
-JST.templates["Test1"] = {}; if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { if (!JST.templates["Test1"].hasOwnProperty("foo")) { JST.templates["Test1"].foo = function (out, cx) { with (cx) { out.write("\n\
-   hello\n\
-   world\n\
-"); }}}; this.foo(out, cx); out.write("\n\
-"); }}}; 
+JST.templates["Test1"] = {}; if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { /* comments at top of file */; out.write("\n\
+"); if (!JST.templates["Test1"].hasOwnProperty("foo")) { JST.templates["Test1"].foo = function (out, cx) { with (cx) { out.write("\n\
+  hello\n\
+  world\n\
+"); }}}; this.foo(out, cx); }}}; 
 =====
 {function render}
 {/function render}
 -----
-// already has render
+JST.templates["Test2"] = {}; if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { out.write("\n\
+"); }}}; this.render(out, cx); }}}; 

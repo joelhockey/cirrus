@@ -532,16 +532,7 @@ public class CirrusScope extends ImporterTopLevel {
         log.info("loadjst: " + path);
         String jstFile = readFile(path, null);
         // if prototype declared, then load it
-        Pattern p = Pattern.compile(
-                "(?:^\\s*//.*$)*" + // skip comment lines, non-capturing
-                // line with prototype declaration
-                "^\\s*\\{" + // optional whitespace then '{'
-                "[ \\t]*" + // optional space/tab
-                "prototype[ \\t]+" + // 'prototype' then mandatory space/tab
-                "([^\\s{}]+)" + // name of prototype, capture
-                "[ \\t]*}", // optional space/tab then '}'
-                Pattern.MULTILINE); // multiline for matching comment lines
-        Matcher m = p.matcher(jstFile);
+        Pattern p = Pattern.compile("^\\s*\\{[ \\t]*prototype[ \\t]+([^\\s{}]+)[ \\t]*}");        Matcher m = p.matcher(jstFile);
         if (m.find()) {
             loadjst(cx, m.group(1));
         }
