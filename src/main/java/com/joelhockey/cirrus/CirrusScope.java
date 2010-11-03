@@ -101,7 +101,7 @@ public class CirrusScope extends ImporterTopLevel {
         };
         defineFunctionProperties(names, CirrusScope.class, ScriptableObject.DONTENUM);
         put("timer", this, timer);
-        put("JSON", this, new com.joelhockey.cirrus.RhinoJSON());
+        put("JSON", this, new RhinoJSON());
         Context.exit();
     }
 

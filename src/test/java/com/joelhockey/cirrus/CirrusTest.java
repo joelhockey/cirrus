@@ -30,8 +30,8 @@ public class CirrusTest extends TestCase {
         ic.bind("jdbc/cirrus", DataSources.pooledDataSource(ds));
 
         sconf = new MockServletConfig();
-        sconf.params.put("dbname", "jdbc/cirrus");
-        sconf.params.put("dbversion", "1");
+        sconf.getInitParameters().put("dbname", "jdbc/cirrus");
+        sconf.getInitParameters().put("dbversion", "1");
         servlet = new CirrusServlet();
         servlet.init(sconf);
     }

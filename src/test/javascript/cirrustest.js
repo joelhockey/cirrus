@@ -7,8 +7,8 @@ CirrusTest = {
         ic.bind("jdbc/cirrus", com.mchange.v2.c3p0.DataSources.pooledDataSource(ds));
 
         var sconf = new com.joelhockey.cirrus.MockServletConfig();
-        sconf.params.put("dbname", "jdbc/cirrus");
-        sconf.params.put("dbversion", "1");
+        sconf.initParameters.put("dbname", "jdbc/cirrus");
+        sconf.initParameters.put("dbversion", "1");
         this.servlet = new com.joelhockey.cirrus.CirrusServlet();
         this.servlet.init(sconf);
     },

@@ -48,7 +48,7 @@ public class PerfTest implements Runnable {
 
     private static void test(int its, int threads, String test, HttpServlet servlet, String path) throws Exception {
         MockServletConfig config = new MockServletConfig();
-        config.params.put("dbname", "jdbc/cirrus");
+        config.getInitParameters().put("dbname", "jdbc/cirrus");
         servlet.init(config);
 
         Runtime.getRuntime().gc();

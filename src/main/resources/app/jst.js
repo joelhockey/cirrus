@@ -198,3 +198,14 @@ var JST = {
         return src.join("");
     }
 }
+
+// JST relies on global method 'h' for html-escape
+var h = h || function(s, out) {
+    if (!s) return ""; 
+    var result = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    if (out) {
+        out.write(result);
+    } else {
+        return result;
+    }
+}

@@ -1,17 +1,45 @@
 {eval /* comments at top of file */ }
+main text
 {function foo}
   hello
-  world
+  ${name}
 {/function foo}
 -----
 JST.templates["Test1"] = {}; if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { /* comments at top of file */; out.write("\n\
+main text\n\
 "); if (!JST.templates["Test1"].hasOwnProperty("foo")) { JST.templates["Test1"].foo = function (out, cx) { with (cx) { out.write("\n\
   hello\n\
-  world\n\
+  "); h(name, out); out.write("\n\
 "); }}}; this.foo(out, cx); }}}; 
-=====
-{function render}
-{/function render}
 -----
-JST.templates["Test2"] = {}; if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { out.write("\n\
-"); }}}; this.render(out, cx); }}}; 
+{ name: "Test1" }
+-----
+
+main text
+
+  hello
+  Test1
+
+=====
+{function render}declares render{/function render}
+-----
+JST.templates["Test2"] = {}; if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { out.write("declares render"); }}}; this.render(out, cx); }}}; 
+-----
+{}
+-----
+declares render
+=====
+{prototype Test1}
+<!-- html comments -->
+{function foo}
+  overrides proto
+{/function foo}
+-----
+JST.templates["Test3"] = Object.create(JST.templates["Test1"]); 
+if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { out.write("declares render"); }}}; this.render(out, cx); }}}; 
+-----
+{}
+-----
+<!-- html comments -->
+
+  overrides proto
