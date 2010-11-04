@@ -1,0 +1,8 @@
+start with some text
+{prototype Test1}
+-----
+unrecognised tag {prototype Test1}
+=====
+{function render}{/function render}
+-----
+function 'render' not allowed

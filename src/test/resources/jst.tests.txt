@@ -1,45 +1,136 @@
-{eval /* comments at top of file */ }
-main text
-{function foo}
-  hello
-  ${name}
-{/function foo}
------
-JST.templates["Test1"] = {}; if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { /* comments at top of file */; out.write("\n\
-main text\n\
-"); if (!JST.templates["Test1"].hasOwnProperty("foo")) { JST.templates["Test1"].foo = function (out, cx) { with (cx) { out.write("\n\
-  hello\n\
-  "); h(name, out); out.write("\n\
-"); }}}; this.foo(out, cx); }}}; 
------
-{ name: "Test1" }
------
 
-main text
+  
 
-  hello
-  Test1
+{eval /* Base file */ }
+first line
+
+main text hello ${name}
+
+{function showfruit}
+fruits available:
+  {for each (var f in fruit)}  
+fruit: ${f}{if (f === bestfruit)} - this is the best!{/if}
+  {forelse}
+      no fruit
+  {/for}  
+
+{if (likefruit)}i like fruit{else}i don't like fruit{/if}
+{/function showfruit}
+
+{function showveg}
+
+vegetables available:
+  { for each (var v in veg) }
+vegetable: ${v}
+  {forelse}
+      no vegetables
+  {/for}
+
+yummy vegetables that my kids like to eat:
+  {for (var v in yummyveg)}
+vegetable: ${v}
+  {   forelse}
+      no yummy veg
+  {/for   }
+    
+{/function showveg}
+-----
+JST.templates["Test1"] = {}; 
+
+
+if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
+out.write("first line\n\
+\n\
+main text hello "); h(name, out); out.write("\n\
+\n\
+"); if (!JST.templates["Test1"].hasOwnProperty("showfruit")) { JST.templates["Test1"].showfruit = function (out, cx) { with (cx) { 
+out.write("fruits available:\n\
+"); var forcounter = 0; for each (var f in fruit) { forcounter++; 
+out.write("fruit: "); h(f, out); if (f === bestfruit) {out.write(" - this is the best!"); } out.write("\n\
+"); } if (forcounter === 0) { 
+out.write("      no fruit\n\
+"); } 
+out.write("\n\
+"); if (likefruit) {out.write("i like fruit"); } else  {out.write("i don't like fruit"); } out.write("\n\
+"); }}}; this.showfruit(out, cx); 
+out.write("\n\
+"); if (!JST.templates["Test1"].hasOwnProperty("showveg")) { JST.templates["Test1"].showveg = function (out, cx) { with (cx) { 
+out.write("\n\
+vegetables available:\n\
+"); var forcounter = 0; for each (var v in veg) { forcounter++; 
+out.write("vegetable: "); h(v, out); out.write("\n\
+"); } if (forcounter === 0) { 
+out.write("      no vegetables\n\
+"); } 
+out.write("\n\
+yummy vegetables that my kids like to eat:\n\
+"); var forcounter = 0; for (var v in yummyveg) { forcounter++; 
+out.write("vegetable: "); h(v, out); out.write("\n\
+"); } if (forcounter === 0) { 
+out.write("      no yummy veg\n\
+"); } 
+out.write("    \n\
+"); }}}; this.showveg(out, cx); }}}; 
+-----
+{
+    name: "food1",
+    fruit: ["apples", "oranges", "banana"],
+    likefruit: true,
+    bestfruit: "banana",
+    veg: ["potato", "pumpkin"],
+    yummyveg: []
+}
+-----
+first line
+
+main text hello food1
+
+fruits available:
+fruit: apples
+fruit: oranges
+fruit: banana - this is the best!
+
+i like fruit
+
+
+vegetables available:
+vegetable: potato
+vegetable: pumpkin
+
+yummy vegetables that my kids like to eat:
+      no yummy veg
+    
 
 =====
-{function render}declares render{/function render}
------
-JST.templates["Test2"] = {}; if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { out.write("declares render"); }}}; this.render(out, cx); }}}; 
------
-{}
------
-declares render
-=====
+
 {prototype Test1}
-<!-- html comments -->
-{function foo}
-  overrides proto
-{/function foo}
------
-JST.templates["Test3"] = Object.create(JST.templates["Test1"]); 
-if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { if (!JST.templates["Test2"].hasOwnProperty("render")) { JST.templates["Test2"].render = function (out, cx) { with (cx) { out.write("declares render"); }}}; this.render(out, cx); }}}; 
------
-{}
------
-<!-- html comments -->
 
-  overrides proto
+this gets ignored
+
+{function showveg}no veg to see today{/function showveg}
+-----
+JST.templates["Test2"] = Object.create(JST.templates["Test1"]); 
+out.write("\n\
+\n\
+this gets ignored\n\
+\n\
+"); if (!JST.templates["Test2"].hasOwnProperty("showveg")) { JST.templates["Test2"].showveg = function (out, cx) { with (cx) { out.write("no veg to see today"); }}}; 
+-----
+{
+    name: "food2",
+    fruit: ["apples", "oranges"],
+    likefruit: false,
+    bestfruit: "none",
+}
+-----
+first line
+
+main text hello food2
+
+fruits available:
+fruit: apples
+fruit: oranges
+
+i don't like fruit
+
+no veg to see today
