@@ -18,7 +18,7 @@ JSTTest = {
             var src = parts[0];
             var expectedParsed = parts[1].replace(/\r/g, "");
             var cxstr = parts[2];
-            var expectedRendered = parts[3].replace(/\r/g, "");
+            var expectedRendered = parts[3];
             
             this.writef("target/test-classes/jst.parsed.expected.txt", expectedParsed);
             this.writef("target/test-classes/jst.rendered.expected.txt", expectedRendered);

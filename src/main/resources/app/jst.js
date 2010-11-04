@@ -25,11 +25,11 @@ var JST = {
         // parse
         while (body.length > 0) {
             // newline
-            if ((groups = /^[ \t]*(\r?\n|\r)/.exec(body)) != null) { 
+            if (groups = /^[ \t]*(\r?\n|\r)/.exec(body)) { 
                 toks.push({type: "newline", tok: groups[0], value: groups[0]});
                 
             // value, opentag, closetag
-            } else if ((groups = /^(\$|\s*){(\/?)([^\r\n{}]+)}/.exec(body)) != null) {
+            } else if (groups = /^(\$|\s*){(\/?)([^\r\n{}]+)}/.exec(body)) {
                 var type = groups[1] === "$" ? "value" : 
                     groups[2] == "/" ? "closetag" : "opentag";
                 var value = groups[3].replace(/^\s+|\s+$/g, ""); // trim space
@@ -37,8 +37,8 @@ var JST = {
                     value: value, words: value.split(/\s+/)});
                 
             // text
-            } else if ((groups = /^[^\r\n${]+/.exec(body)) != null ||
-                    (groups = /^[^\r\n]+/.exec(body)) != null) {
+            } else if ((groups = /^[^\r\n${]+/.exec(body)) ||
+                    (groups = /^[^\r\n]+/.exec(body))) {
                 toks.push({type: "text", tok: groups[0], value: groups[0]});
             } else {
                 // impossible
@@ -59,14 +59,26 @@ var JST = {
         //   JST.templates[name] = Object.create(JST.templates[proto]);
         var src = ['JST.templates["' + name + '"] = {}; '];
         
-        // consolidate text parts into a single 'out.write' statement
-        var text = function() {
-            if (textparts.length > 0) {
+        // escapes
+        var swaps = {
+                '"': '\\"', 
+                "\r": "\\r\\\n",
+                "\n": "\\n\\\n", 
+                "\r\n": "\\r\\n\\\n"
+        };
+        
+        // add specified string to src.
+        // first put text parts into single 'out.write' statement
+        var addsrc = function(s) {
+            // first push text onto src
+            if (textparts.length) {
                 src.push('out.write("' + textparts.join('')
-                        .replace(/(\r?\n|\r)/g, '\\n\\\n')
-                        .replace(/"/g, '\\"') + '"); ');
+                        .replace(/\r?\n|\r|"/g, function(str) { 
+                            return swaps[str];
+                        }) + '"); ');
                 textparts = [];
             }
+            src.push(s);
         };
         
         // errors during generator
@@ -75,7 +87,11 @@ var JST = {
                     ", tagstack: [" + tagstack.join(" > ") + "]");
         };
 
-        // Execute Generator.
+        // Generate JS template that can be eval'ed
+        // Take care to match line numbers of generated JS with
+        // line numbers of source.  We then rely on JS interpreter to
+        // provide good error messages
+        
         // skip blank lines at start
         while (toks.length > 0 && toks[0].type === "newline") {
             toks.shift();
@@ -115,8 +131,7 @@ var JST = {
                 while (j > 0 && /(open|close)tag/.test(toks[--j].type));
                 var tags = j < i-1 && (j === 0 || toks[j].type === "newline");
                 if (inEval || tags) {
-                    text();
-                    src.push("\n"); // formatting only
+                    addsrc("\n"); // formatting only
                 } else { 
                     textparts.push(tok.value); // needs to be rendered
                 }
@@ -124,19 +139,17 @@ var JST = {
             // are we at end of {text?}...{/text?} or {eval}...{/eval}
             } else if ((inText || inEval) && tok.type === "closetag"
                     && tok.value === toptag) {
-                text();
-                src.push("; ");
+                addsrc("; ");
                 // we are now finished 'text' or 'eval' section
                 inText = inEval = false; 
             } else if (inText) { // still in text
                 textlines.push(tok);
             } else if (inEval) { // still in eval
-                src.push(tok);
+                addsrc(tok);
 
             // value substitution
             } else if (tok.type === "value") {
-                text(); // dump existing text
-                src.push('h(' + tok.value + ', out); '); // html-escape
+                addsrc('h(' + tok.value + ', out); '); // html-escape
 
             // open tag
             } else if (tok.type === "opentag") {
@@ -148,41 +161,35 @@ var JST = {
                         error("function 'render' not allowed");
                     }
                     fcount++;
-                    text();
-                    src.push('if (!JST.templates["' + 
+                    addsrc('if (!JST.templates["' + 
                             name + '"].hasOwnProperty("' + 
                             tok.words[1] + '")) { JST.templates["' + 
                             name + '"].' + tok.words[1] + 
                             ' = function (out, cx) { with (cx) { ');
                     tagstack.push(tok.value); // push 'function <fname>'
                 } else if (tok.words[0] === "if") {
-                    text();
-                    src.push(tok.value + " {");
+                    addsrc(tok.value + " {");
                     tagstack.push("if");
                 } else if (tok.words[0].match(/^els?e?(if)?$/)) {
                     if (!toptag || !toptag.match(/^(if|els?e?(if)?)$/)) {
                         error("unexpected else(if)? tag");
                     }
-                    text();
                     var ifword = tok.words[0] === "else" ? "" : " if ";
-                    src.push("} else " + ifword 
+                    addsrc("} else " + ifword 
                             + tok.words.slice(1).join(" ") + " {");
                 } else if (tok.words[0] === "for") {
-                    text();
-                    src.push("var forcounter = 0; " + 
+                    addsrc("var forcounter = 0; " + 
                             tok.value + " { forcounter++; ");
                     tagstack.push("for");
                 } else if (tok.words[0] === "forelse") {
                     if (toptag !== "for") { error("unexpected forelse tag"); }
-                    text();
-                    src.push("} if (forcounter === 0) { ");
+                    addsrc("} if (forcounter === 0) { ");
                 } else if (tok.words[0] === "eval") {
-                    text();
                     if (tok.words.length === 1) {
                          inEval = true;
                          tagstack.push("eval");
                     } else { // inline eval
-                        src.push(tok.words.slice(1).join(" ") + "; ");
+                        addsrc(tok.words.slice(1).join(" ") + "; ");
                     }
                 } else if (tok.words[0].match(/^text/)) {
                     inText = true;
@@ -197,14 +204,13 @@ var JST = {
                     error("unexepcted closetag " + tok.tok);
                 }
                 tagstack.pop();
-                text();
                 if (tok.words[0] === "function") {
                     fcount--;
                     // all nested functions must invoke themselves
-                    src.push(fcount === 0 ? "}}}; "
+                    addsrc(fcount === 0 ? "}}}; "
                             : "}}}; this." + tok.words[1] + "(out, cx); ");
                 } else {
-                    src.push("} ");
+                    addsrc("} ");
                 }
 
             // text
@@ -215,7 +221,7 @@ var JST = {
             }
             linepos += tok.value.length
         }
-        text();
+        
         return src.join("");
     }
 }
