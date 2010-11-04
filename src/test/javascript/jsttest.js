@@ -38,8 +38,7 @@ JSTTest = {
                 buf: [],
                 write: function(s) { this.buf.push(s); }
             }
-            var template = JST.templates[name];
-            template.render.call(template, out, cx);
+            JST.templates[name].render(out, cx);
             var actualRendered = out.buf.join("");
             this.writef("target/test-classes/jst.rendered.actual.txt", actualRendered);
             assertEquals(name + ":rendered", expectedRendered, actualRendered);

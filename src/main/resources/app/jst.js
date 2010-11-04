@@ -18,9 +18,9 @@ var JST = {
         // Format of token:
         //  - type: newline|value|opentag|closetag|text
         //  - tok: exact matched text, e.g. '{for (var item in items)}'
-        //  - value: value of token, e.g. 'for'
+        //  - value: value of token, e.g. 'for', 'function foo'
         //  - words: value.split(), used only in opentag and closetag,
-        //     e.g. ['for','(var','item','in','items)']
+        //     e.g. ['for','(var','item','in','items)'], ['function', 'foo']
         
         // parse
         while (body.length > 0) {
@@ -54,8 +54,8 @@ var JST = {
         var textparts = []; // text parts are grouped for better render perf
         var fcount = 0;     // number of functions on tagstack
         // src is output of generator
-        // First line of 'src' creates template object within JST.templates
-        // If template declares prototype, it is replaced with: 
+        // First line of 'src' creates template object within 'JST.templates'
+        // If template declares prototype, src[0] is replaced with: 
         //   JST.templates[name] = Object.create(JST.templates[proto]);
         var src = ['JST.templates["' + name + '"] = {}; '];
         
@@ -69,18 +69,20 @@ var JST = {
             }
         };
         
+        // errors during generator
         var error = function(desc) {
             throw new Error(desc + ", line: " + line + "." + linepos + 
                     ", tagstack: [" + tagstack.join(" > ") + "]");
         };
 
+        // Execute Generator.
         // skip blank lines at start
         while (toks.length > 0 && toks[0].type === "newline") {
             toks.shift();
             src.push("\n");
         }
         
-        // either set up 'prototype' or wrap with 'function render'
+        // either set up 'prototype' or wrap toks with 'function render'
         if (toks.length > 0 && (toks[0].type === "opentag" 
                     && toks[0].words[0] === "prototype")) {
                 var tok = toks.shift();
