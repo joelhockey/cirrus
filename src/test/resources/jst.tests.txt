@@ -113,9 +113,11 @@ this gets ignored
 {function showveg}
 {eval}
 var x = 0;
+var hello = "hello";
 for (var i = 0; i < 5; i++) { x++; }
 {/eval}
 x should be 5: ${x}
+big hello: ${hello.toUpperCase()}
 {text}
 some text with tags like {for}, {/if}, etc
 {/text}
@@ -132,9 +134,11 @@ this gets ignored\r\n\
 "); if (!JST.templates["Test2"].hasOwnProperty("showveg")) { JST.templates["Test2"].showveg = function (out, cx) { with (cx) { 
 
 var x = 0;
+var hello = "hello";
 for (var i = 0; i < 5; i++) x++;
 ; 
 out.write("x should be 5: "); h(x, out); out.write("\r\n\
+big hello: "); h(hello.toUpperCase(), out); out.write("\r\n\
 "); 
 out.write("some text with tags like {for}, {/if}, etc\r\n\
 "); ; 
@@ -162,5 +166,6 @@ fruit: oranges
 i don't like fruit
 
 x should be 5: 5
+big hello: HELLO
 some text with tags like {for}, {/if}, etc
 text with {text} tag
