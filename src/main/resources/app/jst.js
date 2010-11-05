@@ -35,7 +35,7 @@ var JST = {
                 var value = groups[3].replace(/^\s+|\s+$/g, ""); // trim space
                 toks.push({type: type, tok: groups[0], 
                     value: value, words: value.split(/\s+/)});
-                
+
             // text
             } else if ((groups = /^[^\r\n${]+/.exec(body)) ||
                     (groups = /^[^\r\n]+/.exec(body))) {
@@ -59,22 +59,19 @@ var JST = {
         //   JST.templates[name] = Object.create(JST.templates[proto]);
         var src = ['JST.templates["' + name + '"] = {}; '];
         
-        // escapes
-        var swaps = {
-                '"': '\\"', 
-                "\r": "\\r\\\n",
-                "\n": "\\n\\\n", 
-                "\r\n": "\\r\\n\\\n"
-        };
-        
         // add specified string to src.
         // first put text parts into single 'out.write' statement
         var addsrc = function(s) {
             // first push text onto src
             if (textparts.length) {
                 src.push('out.write("' + textparts.join('')
-                        .replace(/\r?\n|\r|"/g, function(str) { 
-                            return swaps[str];
+                        .replace(/\r?\n|\r|"/g, function(str) {
+                            switch(str) {
+                            case "\r\n": return "\\r\\n\\\n";
+                            case '"': return '\\"';
+                            case "\n": return "\\n\\\n";
+                            case "\r": return "\\r\\\n";
+                            }
                         }) + '"); ');
                 textparts = [];
             }
@@ -142,10 +139,11 @@ var JST = {
                 addsrc("; ");
                 // we are now finished 'text' or 'eval' section
                 inText = inEval = false; 
+                tagstack.pop();
             } else if (inText) { // still in text
-                textlines.push(tok);
+                textparts.push(tok.tok);
             } else if (inEval) { // still in eval
-                addsrc(tok);
+                addsrc(tok.value);
 
             // value substitution
             } else if (tok.type === "value") {
@@ -194,8 +192,9 @@ var JST = {
                 } else if (tok.words[0].match(/^text/)) {
                     inText = true;
                     tagstack.push(tok.value);
-                } else {
-                    error("unrecognised tag " + tok.tok);
+                } else { // treat as text
+                    tok.type = "text";
+                    textparts.push(tok.tok);
                 }
 
             // close tag
@@ -216,8 +215,9 @@ var JST = {
             // text
             } else if (tok.type === "text") {
                 textparts.push(tok.value);
+            
             } else {
-            	error("invalid token type: " + tok.type)
+                error("unrecognised token type: " + tok.type);
             }
             linepos += tok.value.length
         }
@@ -229,7 +229,13 @@ var JST = {
 // JST relies on global method 'h' for html-escape
 var h = h || function(s, out) {
     if (!s) return ""; 
-    var result = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    var result = s.toString().replace(/&|<|>/g, function(str) {
+       switch (str) {
+       case "&": return "&amp;";
+       case "<": return "&lt;";
+       case ">": return "&gt;";
+       } 
+    });
     if (out) {
         out.write(result);
     } else {

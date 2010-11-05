@@ -3,9 +3,10 @@
 
 {eval /* Base file */ }
 first line
+{prototype ignored-if-not-first-tag}
 
 main text hello ${name}
-
+{ put some other suff in brackets }
 {function showfruit}
 fruits available:
   {for each (var f in fruit)}  
@@ -40,9 +41,10 @@ JST.templates["Test1"] = {};
 
 if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
 out.write("first line\r\n\
+{prototype ignored-if-not-first-tag}\r\n\
 \r\n\
 main text hello "); h(name, out); out.write("\r\n\
-\r\n\
+{ put some other suff in brackets }\r\n\
 "); if (!JST.templates["Test1"].hasOwnProperty("showfruit")) { JST.templates["Test1"].showfruit = function (out, cx) { with (cx) { 
 out.write("fruits available:\r\n\
 "); var forcounter = 0; for each (var f in fruit) { forcounter++; 
@@ -82,9 +84,10 @@ out.write("    \r\n\
 }
 -----
 first line
+{prototype ignored-if-not-first-tag}
 
 main text hello food1
-
+{ put some other suff in brackets }
 fruits available:
 fruit: apples
 fruit: oranges
@@ -107,14 +110,38 @@ yummy vegetables that my kids like to eat:
 
 this gets ignored
 
-{function showveg}no veg to see today{/function showveg}
+{function showveg}
+{eval}
+var x = 0;
+for (var i = 0; i < 5; i++) { x++; }
+{/eval}
+x should be 5: ${x}
+{text}
+some text with tags like {for}, {/if}, etc
+{/text}
+{texttext}
+text with {text} tag
+{/texttext}
+{/function showveg}
 -----
 JST.templates["Test2"] = Object.create(JST.templates["Test1"]); 
 out.write("\r\n\
 \r\n\
 this gets ignored\r\n\
 \r\n\
-"); if (!JST.templates["Test2"].hasOwnProperty("showveg")) { JST.templates["Test2"].showveg = function (out, cx) { with (cx) { out.write("no veg to see today"); }}}; 
+"); if (!JST.templates["Test2"].hasOwnProperty("showveg")) { JST.templates["Test2"].showveg = function (out, cx) { with (cx) { 
+
+var x = 0;
+for (var i = 0; i < 5; i++) x++;
+; 
+out.write("x should be 5: "); h(x, out); out.write("\r\n\
+"); 
+out.write("some text with tags like {for}, {/if}, etc\r\n\
+"); ; 
+
+out.write("text with {text} tag\r\n\
+"); ; 
+}}}; 
 -----
 {
     name: "food2",
@@ -124,13 +151,16 @@ this gets ignored\r\n\
 }
 -----
 first line
+{prototype ignored-if-not-first-tag}
 
 main text hello food2
-
+{ put some other suff in brackets }
 fruits available:
 fruit: apples
 fruit: oranges
 
 i don't like fruit
 
-no veg to see today
+x should be 5: 5
+some text with tags like {for}, {/if}, etc
+text with {text} tag

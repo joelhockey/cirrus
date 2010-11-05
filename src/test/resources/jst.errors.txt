@@ -1,7 +1,7 @@
-start with some text
-{prototype Test1}
+{if something}
+{/for}
 -----
-unrecognised tag {prototype Test1}
+unexepcted closetag {/for}
 =====
 {function render}{/function render}
 -----
