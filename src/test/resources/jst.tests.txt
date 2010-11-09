@@ -2,7 +2,7 @@
   
 
 {eval /* Base file */ }
-first line
+Fruit & Veg
 {prototype ignored-if-not-first-tag}
 
 main text hello ${name}
@@ -40,7 +40,7 @@ JST.templates["Test1"] = {};
 
 
 JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
-out.write("first line\r\n\
+out.write("Fruit & Veg\r\n\
 {prototype ignored-if-not-first-tag}\r\n\
 \r\n\
 main text hello "); h(name, out); out.write("\r\n\
@@ -54,7 +54,7 @@ out.write("      no fruit\r\n\
 "); } 
 out.write("\r\n\
 "); if (likefruit) {out.write("i like fruit"); } else  {out.write("i don't like fruit"); } out.write("\r\n\
-"); }}}; this.showfruit(out, cx); 
+"); } } }; this.showfruit(out, cx); 
 out.write("\r\n\
 "); if (!JST.templates["Test1"].hasOwnProperty("showveg")) { JST.templates["Test1"].showveg = function (out, cx) { with (cx) { 
 out.write("\r\n\
@@ -72,18 +72,18 @@ out.write("vegetable: "); h(v, out); out.write("\r\n\
 out.write("      no yummy veg\r\n\
 "); } 
 out.write("    \r\n\
-"); }}}; this.showveg(out, cx); }};
+"); } } }; this.showveg(out, cx); } }
 -----
 {
     name: "food1",
     fruit: ["apples", "oranges", "banana"],
     likefruit: true,
     bestfruit: "banana",
-    veg: ["potato", "pumpkin"],
+    veg: ["potato", "pumpkin", "<bad> & \"quote's"],
     yummyveg: []
 }
 -----
-first line
+Fruit & Veg
 {prototype ignored-if-not-first-tag}
 
 main text hello food1
@@ -99,6 +99,7 @@ i like fruit
 vegetables available:
 vegetable: potato
 vegetable: pumpkin
+vegetable: &lt;bad&gt; &amp; &quote;quote&apos;s
 
 yummy vegetables that my kids like to eat:
       no yummy veg
@@ -145,7 +146,7 @@ out.write("some text with tags like {for}, {/if}, etc\r\n\
 
 out.write("text with {text} tag\r\n\
 "); ; 
-}};
+} }
 -----
 {
     name: "food2",
@@ -154,7 +155,7 @@ out.write("text with {text} tag\r\n\
     bestfruit: "none",
 }
 -----
-first line
+Fruit & Veg
 {prototype ignored-if-not-first-tag}
 
 main text hello food2
@@ -169,3 +170,41 @@ x should be 5: 5
 big hello: HELLO
 some text with tags like {for}, {/if}, etc
 text with {text} tag
+
+=====
+line 1
+line 2 {* comment is ignored *}
+{* comment - whole {* line is * } ignored *}
+line 3
+-----
+JST.templates["Test3"] = {}; JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\r\n\
+line 2 \r\n\
+"); 
+out.write("line 3"); } }
+-----
+{}
+-----
+line 1
+line 2 
+line 3
+=====
+top
+{render Test3}
+
+bottom {* only single
+line comments {supported *}
+-----
+JST.templates["Test4"] = {}; JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\r\n\
+"); JST.templates["Test3"].render(out, cx); 
+out.write("\r\n\
+bottom {* only single\r\n\
+line comments {supported *}"); } }
+-----
+{}
+-----
+top
+line 1
+line 2 
+line 3
+bottom {* only single
+line comments {supported *}

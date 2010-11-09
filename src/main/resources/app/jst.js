@@ -70,22 +70,26 @@ var JST = {
         // parser puts tokens in 'toks' array.
         // Each token is an object containing information used by generator 
         // Format of token:
-        //  - type: newline|value|opentag|closetag|text
+        //  - type: newline|value|opentag|closetag|text|comment
         //  - tok: exact matched text, e.g. '{for (var item in items)}'
         //  - value: value of token, e.g. 'for', 'function foo'
         //  - words: value.split(), used only in opentag and closetag,
         //     e.g. ['for','(var','item','in','items)'], ['function', 'foo']
-        
+
         // parse
         while (body.length > 0) {
             // newline
             if (groups = /^[ \t]*(\r?\n|\r)/.exec(body)) { 
                 toks.push({type: "newline", tok: groups[0], value: groups[0]});
-                
+
+            // comment
+            } else if (groups = /^\s*{\*(.*?)\*}/.exec(body)) {
+                toks.push({type: "comment", tok: groups[0], value: groups[1]});
             // value, opentag, closetag
             } else if (groups = /^(\$|\s*){(\/?)([^\r\n{}]+)}/.exec(body)) {
-                var type = groups[1] === "$" ? "value" : 
-                    groups[2] == "/" ? "closetag" : "opentag";
+                var type = "opentag";
+                if (groups[1] === "$") { type = "value";
+                } else if (groups[2] === "/") { type = "closetag"; }
                 var value = groups[3].replace(/^\s+|\s+$/g, ""); // trim space
                 toks.push({type: type, tok: groups[0], 
                     value: value, words: value.split(/\s+/)});
@@ -179,11 +183,11 @@ var JST = {
                 // formatting only if we are in {eval}...{/eval},
                 // or if line contains only open/close tags
                 var j = i;
-                while (j > 0 && /(open|close)tag/.test(toks[--j].type));
+                while (j > 0 && /^(opentag|closetag|comment)$/.test(toks[--j].type));
                 var tags = j < i-1 && (j === 0 || toks[j].type === "newline");
                 if (inEval || tags) {
                     addsrc("\n"); // formatting only
-                } else { 
+                } else {
                     textparts.push(tok.value); // needs to be rendered
                 }
 
@@ -199,6 +203,10 @@ var JST = {
             } else if (inEval) { // still in eval
                 addsrc(tok.value);
 
+            // comment
+            } else if (tok.type === "comment") {
+                // do nothing - ignore comment
+                
             // value substitution
             } else if (tok.type === "value") {
                 addsrc('h(' + tok.value + ', out); '); // html-escape
@@ -207,23 +215,26 @@ var JST = {
             } else if (tok.type === "opentag") {
                 if (tok.words[0] === "function") {
                     if (tok.words.length !== 2) {
-                        error("invalid tag format: " + tok.tok);
+                        error("invalid function tag format: " + tok.tok);
                     }
                     if (tok.words[1] === "render" && i !== 0) {
                         error("function 'render' not allowed");
                     }
+                    // inner functions are wrapped within
+                    // 'if (!JST.templates[name].hasOwnProperty(name)) { ...'
                     if (fcount > 0) {
-                        // inner functions are wrapped within
-                        // 'if (!JST.templates[name].hasOwnProperty(name) {...'
-                        addsrc('if (!JST.templates["' + 
-                                name + '"].hasOwnProperty("' + 
-                                tok.words[1] + '")) { '); 
+                        addsrc('if (!JST.templates["' + name 
+                            + '"].hasOwnProperty("' + tok.words[1] + '")) { '); 
                     }
-                    addsrc('JST.templates["' + 
-                            name + '"].' + tok.words[1] + 
-                            ' = function (out, cx) { with (cx) { ');
+                    addsrc('JST.templates["' + name + '"].' + tok.words[1]
+                        + ' = function (out, cx) { with (cx) { ');
                     fcount++;
                     tagstack.push(tok.value); // push 'function <fname>'
+                } else if (tok.words[0] === "render") {
+                    if (tok.words.length !== 2) {
+                        error("invalid render tag format: " + tok.tok);
+                    }
+                    addsrc('JST.templates["' + tok.words[1] + '"].render(out, cx); ');
                 } else if (tok.words[0] === "if") {
                     addsrc(tok.value + " {");
                     tagstack.push("if");
@@ -261,19 +272,17 @@ var JST = {
                 if (toptag !== tok.value) {
                     error("unexepcted closetag " + tok.tok);
                 }
+                addsrc("} ");
                 tagstack.pop();
                 if (tok.words[0] === "function") {
+                    addsrc("}");
                     fcount--;
-                    if (fcount === 0) {
-                        addsrc("}};");
-                    } else {
-                        // inner functions are wrapped within
-                        // 'if (!JST.templates[name].hasOwnProperty(name) {...'
-                        // and must invoke self
-                        addsrc("}}}; this." + tok.words[1] + "(out, cx); ");
+                    // inner functions are wrapped within
+                    // 'if (!JST.templates[name].hasOwnProperty(name)) { ...'
+                    // and must invoke self
+                    if (fcount > 0) {
+                        addsrc(" }; this." + tok.words[1] + "(out, cx); ");
                     }
-                } else {
-                    addsrc("} ");
                 }
 
             // text
@@ -293,11 +302,14 @@ var JST = {
 // JST relies on global method 'h' for html-escape
 var h = h || function(s, out) {
     if (!s) return ""; 
-    var result = s.toString().replace(/&|<|>/g, function(str) {
+    var result = s.toString().replace(/[&<>"']/g, function(str) {
        switch (str) {
        case "&": return "&amp;";
        case "<": return "&lt;";
        case ">": return "&gt;";
+       case '"': return "&quote;";
+       case "'": return "&apos;";
+       default: return str;
        } 
     });
     if (out) {
