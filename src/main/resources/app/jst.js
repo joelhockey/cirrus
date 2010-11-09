@@ -115,7 +115,7 @@ var JST = {
         // First line of 'src' creates template object within 'JST.templates'
         // If template declares prototype, src[0] is replaced with: 
         //   JST.templates[name] = Object.create(JST.templates[proto]);
-        var src = ['JST.templates["' + name + '"] = {}; '];
+        var src = ['JST.templates["' + name + '"] = JST.templates["' + name + '"] || {}; '];
         
         // add specified string to src.
         // first put text parts into single 'out.write' statement
@@ -160,8 +160,11 @@ var JST = {
                 if (tok.words.length !== 2) {
                     error("invalid prototype tag format: " + tok.tok);
                 }
-                src[0] = 'JST.templates["' + name 
-                    + '"] = Object.create(JST.templates["'
+                // create empty prototype if it doesn't yet exist
+                src[0] = 'JST.templates["' + tok.words[1] 
+                    + '"] = JST.templates["' + tok.words[1] 
+                    + '"] || {}; JST.templates["' + name 
+                    + '"] = Object.create(JST.templates["' 
                     + tok.words[1] + '"]); ';
         } else {
             // wrap with render (front and back)
@@ -181,11 +184,11 @@ var JST = {
                 linepos = 1 - tok.value.length;
                 // check if newline is formatting only, or needs to be rendered
                 // formatting only if we are in {eval}...{/eval},
-                // or if line contains only open/close tags
+                // or if line contains only open/close tags, or if fcount === 0
                 var j = i;
                 while (j > 0 && /^(opentag|closetag|comment)$/.test(toks[--j].type));
                 var tags = j < i-1 && (j === 0 || toks[j].type === "newline");
-                if (inEval || tags) {
+                if (inEval || tags || fcount === 0) {
                     addsrc("\n"); // formatting only
                 } else {
                     textparts.push(tok.value); // needs to be rendered
@@ -275,7 +278,7 @@ var JST = {
                 addsrc("} ");
                 tagstack.pop();
                 if (tok.words[0] === "function") {
-                    addsrc("}");
+                    addsrc("};");
                     fcount--;
                     // inner functions are wrapped within
                     // 'if (!JST.templates[name].hasOwnProperty(name)) { ...'
@@ -287,7 +290,10 @@ var JST = {
 
             // text
             } else if (tok.type === "text") {
-                textparts.push(tok.value);
+                // ignore text outside functions
+                if (fcount > 0) {
+                    textparts.push(tok.value);
+                }
             
             } else {
                 error("unrecognised token type: " + tok.type);

@@ -1,8 +1,8 @@
 {prototype test.layout}
 {function title}hello page{/function title}
 {function body}
-{eval debugger;}
   body of hello page
+  {render test._form}
   Hello a is ${a}
   {for (var p in params)}
     ${p} : ${params[p]}

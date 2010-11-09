@@ -36,7 +36,7 @@ vegetable: ${v}
     
 {/function showveg}
 -----
-JST.templates["Test1"] = {}; 
+JST.templates["Test1"] = JST.templates["Test1"] || {}; 
 
 
 JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
@@ -54,7 +54,7 @@ out.write("      no fruit\r\n\
 "); } 
 out.write("\r\n\
 "); if (likefruit) {out.write("i like fruit"); } else  {out.write("i don't like fruit"); } out.write("\r\n\
-"); } } }; this.showfruit(out, cx); 
+"); } }; }; this.showfruit(out, cx); 
 out.write("\r\n\
 "); if (!JST.templates["Test1"].hasOwnProperty("showveg")) { JST.templates["Test1"].showveg = function (out, cx) { with (cx) { 
 out.write("\r\n\
@@ -72,7 +72,7 @@ out.write("vegetable: "); h(v, out); out.write("\r\n\
 out.write("      no yummy veg\r\n\
 "); } 
 out.write("    \r\n\
-"); } } }; this.showveg(out, cx); } }
+"); } }; }; this.showveg(out, cx); } };
 -----
 {
     name: "food1",
@@ -127,12 +127,12 @@ text with {text} tag
 {/texttext}
 {/function showveg}
 -----
-JST.templates["Test2"] = Object.create(JST.templates["Test1"]); 
-out.write("\r\n\
-\r\n\
-this gets ignored\r\n\
-\r\n\
-"); JST.templates["Test2"].showveg = function (out, cx) { with (cx) { 
+JST.templates["Test1"] = JST.templates["Test1"] || {}; JST.templates["Test2"] = Object.create(JST.templates["Test1"]); 
+
+
+
+
+JST.templates["Test2"].showveg = function (out, cx) { with (cx) { 
 
 var x = 0;
 var hello = "hello";
@@ -146,7 +146,7 @@ out.write("some text with tags like {for}, {/if}, etc\r\n\
 
 out.write("text with {text} tag\r\n\
 "); ; 
-} }
+} };
 -----
 {
     name: "food2",
@@ -177,10 +177,10 @@ line 2 {* comment is ignored *}
 {* comment - whole {* line is * } ignored *}
 line 3
 -----
-JST.templates["Test3"] = {}; JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\r\n\
+JST.templates["Test3"] = JST.templates["Test3"] || {}; JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\r\n\
 line 2 \r\n\
 "); 
-out.write("line 3"); } }
+out.write("line 3"); } };
 -----
 {}
 -----
@@ -194,11 +194,11 @@ top
 bottom {* only single
 line comments {supported *}
 -----
-JST.templates["Test4"] = {}; JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\r\n\
+JST.templates["Test4"] = JST.templates["Test4"] || {}; JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\r\n\
 "); JST.templates["Test3"].render(out, cx); 
 out.write("\r\n\
 bottom {* only single\r\n\
-line comments {supported *}"); } }
+line comments {supported *}"); } };
 -----
 {}
 -----

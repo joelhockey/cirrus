@@ -33,5 +33,17 @@ CirrusTest = {
         res = new com.joelhockey.cirrus.MockHttpServletResponse();
         this.servlet.service(req, res);
         assertEquals(304, res.status);
+    },
+    
+    testHello: function() {
+        var req = new com.joelhockey.cirrus.MockHttpServletRequest("GET", "/test/hello");
+        var res = new com.joelhockey.cirrus.MockHttpServletResponse();
+        this.servlet.service(req, res);
+        assertEquals(200, res.status);
+        assertEquals("text/html", res.getContentType());
+        var html = res.getResponse();
+        assertMatches(/This is start of layout/, html);
+        assertMatches(/body of hello page/, html);
+        assertMatches(/_form partial/, html);
     }
 }

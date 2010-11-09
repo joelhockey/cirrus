@@ -506,7 +506,7 @@ public class CirrusScope extends ImporterTopLevel {
         String name = controller + "." + action;
         Context cx = Context.enter();
         try {
-            NativeObject template = loadjst(cx, name).object;
+            NativeObject template = loadjst(name, cx, null).object;
             NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
             HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
             res.setContentType("text/html");
@@ -519,8 +519,8 @@ public class CirrusScope extends ImporterTopLevel {
         }
     }
 
-    private CacheEntry<NativeObject> loadjst(Context cx,
-            String name) throws IOException {
+    private CacheEntry<NativeObject> loadjst(String name, Context cx,
+            Set<String> deps) throws IOException {
 
         String path = "/app/views/" + name.replace('.', '/') + ".jst";
         CacheEntry<NativeObject> result = cacheLookup(templateCache, path);
@@ -531,10 +531,21 @@ public class CirrusScope extends ImporterTopLevel {
         // not found in cache, must compile and execute
         log.info("loadjst: " + path);
         String jstFile = readFile(path, null);
-        // if prototype declared, then load it
-        Pattern p = Pattern.compile("^\\s*\\{[ \\t]*prototype[ \\t]+([^\\s{}]+)[ \\t]*}");        Matcher m = p.matcher(jstFile);
-        if (m.find()) {
-            loadjst(cx, m.group(1));
+        // if prototype or render/partial declared, then try to load deps
+        if (deps == null) {
+            deps = new HashSet<String>();
+        }
+        Pattern p = Pattern.compile("\\{[ \\t]*(prototype|render)[ \\t]+([^\\s{}]+)[ \\t]*\\}");
+        Matcher m = p.matcher(jstFile);
+        while (m.find()) {
+            String dep = m.group(2);
+            if (!deps.contains(dep)) {
+                deps.add(dep);
+                log.debug("loading jst " + name + " dependency " + dep);
+                loadjst(dep, cx, deps);
+            } else {
+                log.debug("ignoring circular dependency " + name + " > " + dep);
+            }
         }
 
         CacheEntry<Script> entry = cacheLookup(SCRIPT_CACHE, path);
