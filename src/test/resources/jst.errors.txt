@@ -1,8 +1,40 @@
-{if something}
-{/for}
+{prototype}
 -----
-unexepcted closetag {/for}
+invalid prototype tag format:
+=====
+{prototype one two}
+-----
+invalid prototype tag format:
+=====
+{function}
+-----
+invalid function tag format:
+=====
+{function one two}
+-----
+invalid function tag format:
 =====
 {function render}{/function render}
 -----
 function 'render' not allowed
+=====
+{render}
+-----
+invalid render tag format:
+=====
+{render one two}
+-----
+invalid render tag format:
+=====
+{else} hello
+-----
+unexpected else\(if\)\? tag
+=====
+{forelse} hello
+-----
+unexpected forelse tag
+=====
+{if something}
+{/for}
+-----
+unexepcted closetag {/for}

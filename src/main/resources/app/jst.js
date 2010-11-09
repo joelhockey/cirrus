@@ -147,9 +147,11 @@ var JST = {
         };
         
         // errors during generator
-        var error = function(desc) {
-            throw new Error(desc + ", line: " + line + "." + linepos + 
-                    ", tagstack: [" + tagstack.join(" > ") + "]");
+        var error = function(b, desc) {
+            if (b) {
+                throw new Error(desc + ", line: " + line + "."  + linepos 
+                        + ", tagstack: [" + tagstack.join(" > ") + "]");
+            }
         };
 
         // Generate JS template that can be eval'ed
@@ -167,9 +169,8 @@ var JST = {
         if (toks.length > 0 && (toks[0].type === "opentag" 
                     && toks[0].words[0] === "prototype")) {
                 var tok = toks.shift();
-                if (tok.words.length !== 2) {
-                    error("invalid prototype tag format: " + tok.tok);
-                }
+                error(tok.words.length !== 2, 
+                        "invalid prototype tag format: " + tok.tok);
                 // create empty prototype if it doesn't yet exist
                 src[0] = 'JST.get("' + name + '", "' + tok.words[1] + '"); '; 
         } else {
@@ -223,12 +224,10 @@ var JST = {
             // open tag
             } else if (tok.type === "opentag") {
                 if (tok.words[0] === "function") {
-                    if (tok.words.length !== 2) {
-                        error("invalid function tag format: " + tok.tok);
-                    }
-                    if (tok.words[1] === "render" && i !== 0) {
-                        error("function 'render' not allowed");
-                    }
+                    error(tok.words.length !== 2, 
+                            "invalid function tag format: " + tok.tok);
+                    error(tok.words[1] === "render" && i !== 0, 
+                            "function 'render' not allowed");
                     // inner functions are wrapped within
                     // 'if (!JST.templates[name].hasOwnProperty(name)) { ...'
                     if (fcount > 0) {
@@ -240,17 +239,15 @@ var JST = {
                     fcount++;
                     tagstack.push(tok.value); // push 'function <fname>'
                 } else if (tok.words[0] === "render") {
-                    if (tok.words.length !== 2) {
-                        error("invalid render tag format: " + tok.tok);
-                    }
+                    error(tok.words.length !== 2, 
+                            "invalid render tag format: " + tok.tok);
                     addsrc('JST.templates["' + tok.words[1] + '"].render(out, cx); ');
                 } else if (tok.words[0] === "if") {
                     addsrc(tok.value + " {");
                     tagstack.push("if");
                 } else if (tok.words[0].match(/^els?e?(if)?$/)) {
-                    if (!toptag || !toptag.match(/^(if|els?e?(if)?)$/)) {
-                        error("unexpected else(if)? tag");
-                    }
+                    error(!toptag || !toptag.match(/^(if|els?e?(if)?)$/),
+                            "unexpected else(if)? tag");
                     var ifword = tok.words[0] === "else" ? "" : " if ";
                     addsrc("} else " + ifword 
                             + tok.words.slice(1).join(" ") + " {");
@@ -259,7 +256,7 @@ var JST = {
                             tok.value + " { forcounter++; ");
                     tagstack.push("for");
                 } else if (tok.words[0] === "forelse") {
-                    if (toptag !== "for") { error("unexpected forelse tag"); }
+                    error(toptag !== "for", "unexpected forelse tag"); 
                     addsrc("} if (forcounter === 0) { ");
                 } else if (tok.words[0] === "eval") {
                     if (tok.words.length === 1) {
@@ -278,9 +275,7 @@ var JST = {
 
             // close tag
             } else if (tok.type === "closetag") {
-                if (toptag !== tok.value) {
-                    error("unexepcted closetag " + tok.tok);
-                }
+                error(toptag !== tok.value, "unexepcted closetag " + tok.tok);
                 addsrc("} ");
                 tagstack.pop();
                 if (tok.words[0] === "function") {
@@ -302,7 +297,8 @@ var JST = {
                 }
             
             } else {
-                error("unrecognised token type: " + tok.type);
+                // should not happen
+                error(true, "unrecognised token type: " + tok.type);
             }
             linepos += tok.value.length
         }
