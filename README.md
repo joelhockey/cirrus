@@ -12,6 +12,7 @@ to know JavaScript.  So if you have to learn JavaScript, then why not use it
 wherever possible, including on the server.
 
 ## Cirrus directory layout
+TODO: needs updating
 A cirrus application is deployed as a java webapp inside a .war file.
 The directory layout for a cirrus application 'example' is:
 
@@ -30,6 +31,7 @@ The directory layout for a cirrus application 'example' is:
 
     
 ## Cirrus controllers and views
+TODO: needs updating
 Cirrus has controllers and views.
 Cirrus maps the first 2 parts of urls to controller and action.  For example,
 the url /example/hello would map to the 'hello' action of controller 'example'.
@@ -46,6 +48,7 @@ Cirrus will look up the view based on the controller and action.  /example/hello
 will use the view app/views/example/hello.jst.
 
 ### Cirrus Controller example
+TODO: needs updating
 
     controllers.example = {
         hello : function(req, res) {
@@ -60,18 +63,21 @@ will use the view app/views/example/hello.jst.
 
 
 ## Global variables
+TODO: needs updating
 Cirrus runs each request in a separate rhino scope to allow multiple threads to
 execute simultaneously.  The following global objects are available to each
 controller and view:
 
+* servletConfig - javax.servlet.ServletConfig
+* servletContext - javax.servlet.ServletContext
+* request - javax.servlet.http.HttpServletRequest
+* response - javax.servlet.http.HttpServletResponse
+* flash - temporary store
 * path - url path
 * method - http method (upper case)
 * params - object with parameters
-* request - HttpServletRequest object
-* response - HttpServletResponse object
-* controller - controller parsed from path ('pub' by default)
-* action - action parsed from path ('index' by default)
-* cx - context object within views
+* controller - string parsed from path
+* action - string parsed from path
 
 ## Cirrus Templates
 Cirrus templates are inspired from ideas in
@@ -80,11 +86,11 @@ and [django templates](http://docs.djangoproject.com/en/dev/ref/templates/builti
 
 Cirrus templates copy the django inheritance model fairly closely and use a similar
 syntax to both django and trimpath.  Cirrus tries to make things JavaScripty.  For
-example rather than templates 'extending' from each other, the keyword 'prototype'
-is used, and rather than using 'blocks', Cirrus Templates use functions.
+example rather than templates 'extend'ing from each other, the keyword 'prototype'
+is used, and rather than using 'block', Cirrus Templates use 'function'.
 
 Cirrus parses templates once and compiles them into equivalent javascript objects
-(which Rhino compiles into bytecode (and the JVM JIT compiler will optimize if needed)).
+(which Rhino compiles into bytecode (and the JVM JIT compiler can optimize if needed)).
 The Cirrus inheritance model uses JavaScript functions with prototype inheritance
 to allow child templates to override sections defined in parent template files.
 
@@ -107,7 +113,7 @@ app/views/example/hello.jst
     {function title}hello page{/function title}
     {function body}
       body of hello page
-      Hello a is ${cx.a.toString()}
+      Hello a is ${a}
       {for (var p in params)}
         ${p} : ${params[p]}
       {forelse}
@@ -118,17 +124,24 @@ app/views/example/hello.jst
 ### Cirrus Template Syntax
 All cirrus tags use curly braces to denote tags.  Supported tags are:
 
+* single line comments
 * variable expansion
 * prototype
 * function
+* render
 * for / forelse
 * if / elseif / elif
 * text / text?
 * eval
 
+#### single line comments
+    {* _comment_ *}
+Comments are ignored, the start and end tag must be on the same line
+    
 #### variable expansion
     ${_variable name_}
 Variables are printed using the variable expansion syntax.
+All variables are html-escaped.
     
 #### prototype tag
     {prototype _parent template_}
@@ -142,6 +155,11 @@ It defines which template is to be used as the parent.
 
 Blocks of code that are defined by parents and overriden by children
 templates use the function tag.
+
+#### render tag
+    {render _template name_}
+
+Allows other templates or 'partials' to be included into the current template
 
 #### for tag
     {for (var _name_ in _list_)}
