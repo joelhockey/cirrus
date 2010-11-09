@@ -61,7 +61,7 @@ var JST = {
     },
     get: function(templateName, protoName) {
         if (protoName) {
-            function F() {}
+            var F = function() {}
             F.prototype = this.get(protoName);
             JST.templates[templateName] = new F();
         } else {
