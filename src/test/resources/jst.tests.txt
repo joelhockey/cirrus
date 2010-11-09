@@ -39,7 +39,7 @@ vegetable: ${v}
 JST.templates["Test1"] = {}; 
 
 
-if (!JST.templates["Test1"].hasOwnProperty("render")) { JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
+JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
 out.write("first line\r\n\
 {prototype ignored-if-not-first-tag}\r\n\
 \r\n\
@@ -72,7 +72,7 @@ out.write("vegetable: "); h(v, out); out.write("\r\n\
 out.write("      no yummy veg\r\n\
 "); } 
 out.write("    \r\n\
-"); }}}; this.showveg(out, cx); }}}; 
+"); }}}; this.showveg(out, cx); }};
 -----
 {
     name: "food1",
@@ -131,7 +131,7 @@ out.write("\r\n\
 \r\n\
 this gets ignored\r\n\
 \r\n\
-"); if (!JST.templates["Test2"].hasOwnProperty("showveg")) { JST.templates["Test2"].showveg = function (out, cx) { with (cx) { 
+"); JST.templates["Test2"].showveg = function (out, cx) { with (cx) { 
 
 var x = 0;
 var hello = "hello";
@@ -145,7 +145,7 @@ out.write("some text with tags like {for}, {/if}, etc\r\n\
 
 out.write("text with {text} tag\r\n\
 "); ; 
-}}}; 
+}};
 -----
 {
     name: "food2",

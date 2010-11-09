@@ -24,7 +24,7 @@ JSTTest = {
             this.writef("target/test-classes/jst.rendered.expected.txt", expectedRendered);
             
             // validate parsed template
-            var actualParsed = JST.parse(src, name);
+            var actualParsed = JST.parse(name, src);
             this.writef("target/test-classes/jst.parsed.actual.txt", actualParsed);
             assertEquals(name + ":parsed", expectedParsed, actualParsed);
             // eval
@@ -56,7 +56,7 @@ JSTTest = {
             var expectedError = parts[1];
             var gotError = true;
             try {
-                JST.parse(src, name);
+                JST.parse(name, src);
             } catch (e) {
                 assertMatches(name, new RegExp(expectedError), e.message);
                 continue; // goto next test

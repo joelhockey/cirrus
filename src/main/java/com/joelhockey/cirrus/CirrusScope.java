@@ -544,7 +544,7 @@ public class CirrusScope extends ImporterTopLevel {
             Function parse = (Function) jstObj.get("parse", jstObj);
             try {
                 log.info("JST.parse(" + name + ".jst)");
-                String source = (String) parse.call(cx, this, this, new Object[] {jstFile, name});
+                String source = (String) parse.call(cx, this, this, new Object[] {name, jstFile});
                 File tempDir = (File) servletConfig.getServletContext().getAttribute("javax.servlet.context.tempdir");
                 String sourceName = "views/" + name + ".js";
                 if (tempDir != null) {

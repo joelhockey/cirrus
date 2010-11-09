@@ -1,11 +1,65 @@
-// Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
-//
-// JST is a parser / generator.  It parses templates and generates 
-// JavaScript that is then eval'ed and saved.  
+/**
+Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
+
+JST is a parser / generator / compiler.  It parses templates and generates 
+JavaScript that can be compiled (eval'ed using JavaScript runtime).
+
+JST ensures that the generated JavaScript code will have the same line numbers
+as the input template so that error messages from 'eval' will have
+line numbers that match the input template.
+
+Each compiled template produces a JavaScript object that is stored
+in JST.templates and contains method 'render(out, cx)'
+ * 'out' must be an object that implements 'write(str)'
+ * 'cx' is an object that is used as the context to provide 
+   variables used in the template.
+JST provides a helper method 'JST.render(name, cx)' that returns
+the rendered template as a string.
+
+The most basic usage is to call:
+ * JST.compile(name, template);
+ * var output = JST.render(name, cx);
+ 
+    js> load("jst.js");
+    js> var template = "{for each (var name in names)}\nHello ${name}\n{/for}";
+    js> JST.compile("hello", template);
+    js> print(JST.render("hello", { names: ["John", "Paul", "George", "Ringo"] }));
+    Hello John
+    Hello Paul
+    Hello George
+    Hello Ringo
+    
+    js>
+    
+The code below shows parsing and compiling done separately, and
+templates writing to a stream.
+
+    js> var generated = JST.parse("hello", template);
+    js> print(generated);
+    JST.templates["hello"] = {}; if (!JST.templates["hello"].hasOwnProperty("render")) { JST.templates["hello"].render = function (out, cx) { with (cx) { var forcounter = 0; for each (var name in names) { forcounter++;
+    out.write("Hello "); h(name, out); out.write("\n\
+    "); } }}};
+    js> eval(generated);
+    js> var stream = { buf: [], write: function(s) { this.buf.push(s); } }
+    js> JST.templates.hello.render(stream, { names: ["John", "Paul", "George", "Ringo"] });
+    js> print(stream.buf.join(""));
+    Hello John
+    Hello Paul
+    Hello George
+    Hello Ringo
+    
+    js>
+*/
 
 var JST = {
     templates : {},
-    parse : function (body, name) {
+    compile: function(name, body) { eval(this.parse(name, body)); }, 
+    render: function(name, cx) {
+        var out = { buf: [], write: function(s) { this.buf.push(s); }};
+        JST.templates[name].render(out, cx);
+        return out.buf.join("");
+    },
+    parse : function (name, body) {
 
         // parser variables
         var line = 1;       // used by parser for error messages
@@ -158,12 +212,17 @@ var JST = {
                     if (tok.words[1] === "render" && i !== 0) {
                         error("function 'render' not allowed");
                     }
-                    fcount++;
-                    addsrc('if (!JST.templates["' + 
-                            name + '"].hasOwnProperty("' + 
-                            tok.words[1] + '")) { JST.templates["' + 
+                    if (fcount > 0) {
+                        // inner functions are wrapped within
+                        // 'if (!JST.templates[name].hasOwnProperty(name) {...'
+                        addsrc('if (!JST.templates["' + 
+                                name + '"].hasOwnProperty("' + 
+                                tok.words[1] + '")) { '); 
+                    }
+                    addsrc('JST.templates["' + 
                             name + '"].' + tok.words[1] + 
                             ' = function (out, cx) { with (cx) { ');
+                    fcount++;
                     tagstack.push(tok.value); // push 'function <fname>'
                 } else if (tok.words[0] === "if") {
                     addsrc(tok.value + " {");
@@ -205,9 +264,14 @@ var JST = {
                 tagstack.pop();
                 if (tok.words[0] === "function") {
                     fcount--;
-                    // all nested functions must invoke themselves
-                    addsrc(fcount === 0 ? "}}}; "
-                            : "}}}; this." + tok.words[1] + "(out, cx); ");
+                    if (fcount === 0) {
+                        addsrc("}};");
+                    } else {
+                        // inner functions are wrapped within
+                        // 'if (!JST.templates[name].hasOwnProperty(name) {...'
+                        // and must invoke self
+                        addsrc("}}}; this." + tok.words[1] + "(out, cx); ");
+                    }
                 } else {
                     addsrc("} ");
                 }
