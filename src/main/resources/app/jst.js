@@ -59,6 +59,16 @@ var JST = {
         JST.templates[name].render(out, cx);
         return out.buf.join("");
     },
+    get: function(templateName, protoName) {
+        if (protoName) {
+            function F() {}
+            F.prototype = this.get(protoName);
+            JST.templates[templateName] = new F();
+        } else {
+            JST.templates[templateName] = JST.templates[templateName] || {};
+        }
+        return JST.templates[templateName];
+    },
     parse : function (name, body) {
 
         // parser variables
@@ -114,8 +124,8 @@ var JST = {
         // src is output of generator
         // First line of 'src' creates template object within 'JST.templates'
         // If template declares prototype, src[0] is replaced with: 
-        //   JST.templates[name] = Object.create(JST.templates[proto]);
-        var src = ['JST.templates["' + name + '"] = JST.templates["' + name + '"] || {}; '];
+        //   JST.get(name, proto);
+        var src = ['JST.get("' + name + '"); '];
         
         // add specified string to src.
         // first put text parts into single 'out.write' statement
@@ -161,11 +171,7 @@ var JST = {
                     error("invalid prototype tag format: " + tok.tok);
                 }
                 // create empty prototype if it doesn't yet exist
-                src[0] = 'JST.templates["' + tok.words[1] 
-                    + '"] = JST.templates["' + tok.words[1] 
-                    + '"] || {}; JST.templates["' + name 
-                    + '"] = Object.create(JST.templates["' 
-                    + tok.words[1] + '"]); ';
+                src[0] = 'JST.get("' + name + '", "' + tok.words[1] + '"); '; 
         } else {
             // wrap with render (front and back)
             toks.unshift({type: "opentag", tok: "{function render}", 

@@ -36,7 +36,7 @@ vegetable: ${v}
     
 {/function showveg}
 -----
-JST.templates["Test1"] = JST.templates["Test1"] || {}; 
+JST.get("Test1"); 
 
 
 JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
@@ -127,7 +127,7 @@ text with {text} tag
 {/texttext}
 {/function showveg}
 -----
-JST.templates["Test1"] = JST.templates["Test1"] || {}; JST.templates["Test2"] = Object.create(JST.templates["Test1"]); 
+JST.get("Test2", "Test1"); 
 
 
 
@@ -177,7 +177,7 @@ line 2 {* comment is ignored *}
 {* comment - whole {* line is * } ignored *}
 line 3
 -----
-JST.templates["Test3"] = JST.templates["Test3"] || {}; JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\r\n\
+JST.get("Test3"); JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\r\n\
 line 2 \r\n\
 "); 
 out.write("line 3"); } };
@@ -194,7 +194,7 @@ top
 bottom {* only single
 line comments {supported *}
 -----
-JST.templates["Test4"] = JST.templates["Test4"] || {}; JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\r\n\
+JST.get("Test4"); JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\r\n\
 "); JST.templates["Test3"].render(out, cx); 
 out.write("\r\n\
 bottom {* only single\r\n\

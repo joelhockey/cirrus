@@ -44,6 +44,6 @@ CirrusTest = {
         var html = res.getResponse();
         assertMatches(/This is start of layout/, html);
         assertMatches(/body of hello page/, html);
-        assertMatches(/_form partial/, html);
+        assertMatches(/_form partial _form partial _recurse partial/, html);
     }
 }
