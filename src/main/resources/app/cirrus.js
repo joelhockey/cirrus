@@ -116,7 +116,7 @@ for (var path in getResourcePaths("/public/")) {
 // add some global helpers
 if (typeof Object.create !== "function") {
     Object.create = function(o) {
-        function F() {}
+        var F = function() {}
         F.prototype = o;
         return new F();
     }
