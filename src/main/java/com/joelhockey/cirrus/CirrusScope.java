@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -47,6 +46,8 @@ import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.tools.shell.Global;
+
+import com.joelhockey.cirrus.RhinoJava.RhinoList;
 
 /**
  * Rhino scope for CirrusServlet.  Based on {@link Global}.
@@ -109,8 +110,8 @@ public class CirrusScope extends ImporterTopLevel {
      * Similar to python dir() function.
      * @return list of properties of ob prototype chain
      */
-    public List<Object> dir(Object ob) {
-        List<Object> result = new ArrayList<Object>();
+    public Scriptable dir(Object ob) {
+        RhinoList result = new RhinoList(this, new ArrayList<Object>());
         if (!(ob instanceof Scriptable)) {
             return result;
         }
