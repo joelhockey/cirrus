@@ -69,7 +69,13 @@
   <target name="clean" description="clean">
     <delete dir="target" />
   </target>
-  
+
+  <!-- the *debug* targets allow js debug and jvm debug to be turned on.  By default debug is off -->  
+  <target name="no-debug">
+    <property name="debugjs" value=""/>
+    <property name="debugjvm" value=""/>
+    <property name="suspendjvm" value=""/>
+  </target>
   <target name="debugjs" description="turn on js debug">
     <property name="debugjs" value="-Ddebugjs"/>
   </target>
@@ -78,11 +84,6 @@
   </target>
   <target name="suspendjvm" description="turn on jvm debug">
     <property name="suspendjvm" value="-agentlib:jdwp=server=y,suspend=y,transport=dt_socket,address=2718"/>
-  </target>
-  <target name="no-debug" description="no debug">
-    <property name="debugjs" value=""/>
-    <property name="debugjvm" value=""/>
-    <property name="suspendjvm" value=""/>
   </target>
   	
   <target name="server" depends="compile-test,no-debug" description="start web server">
