@@ -18,9 +18,15 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Script;
+import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.tools.ToolErrorReporter;
 import org.mozilla.javascript.tools.shell.Main;
+import org.mozilla.javascript.tools.shell.ShellLine;
 
+/**
+ * Cirrus console.
+ * @author Joel Hockey
+ */
 public class Console {
     static {
         Logger.getRootLogger().addAppender(
@@ -28,13 +34,14 @@ public class Console {
     }
 
     public static void main(String[] args) throws Exception {
-        console(System.out, System.in);
+        CirrusScope scope = new CirrusScope(new MockServletConfig());
+        InputStream jlineIns = ShellLine.getStream(scope);
+        console(scope, System.out, jlineIns != null ? jlineIns : System.in);
     }
 
-    public static void console(PrintStream ps, InputStream ins) {
+    public static void console(ScriptableObject scope, PrintStream ps, InputStream ins) {
         List<String> exitCmds = Arrays.asList("q,quit,exit".split(","));
         Context cx = Context.enter();
-        CirrusScope scope = new CirrusScope(new MockServletConfig());
 
         ps.println(cx.getImplementationVersion());
 
