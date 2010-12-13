@@ -12,6 +12,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 
+import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeJavaObject;
@@ -31,12 +32,12 @@ public class RhinoJava extends WrapFactory {
 
     /**
      * Convert Rhino (Object, Array) to Java (Map, List), or unwrap
-     * NativeJavaObjects.
+     * NativeJavaObjects.  JavaScript function treated as null.
      * @param obj rhino object
      * @return java object
      */
     public static Object rhino2java(Object obj) {
-        if (obj == Undefined.instance || obj == null) {
+        if (obj == Undefined.instance || obj == null || obj instanceof BaseFunction) {
             return null;
         } else if (obj instanceof NativeArray) {
             return rhino2javaNativeArray((NativeArray) obj);
@@ -49,6 +50,11 @@ public class RhinoJava extends WrapFactory {
         }
     }
 
+    /**
+     * Convert Rhino NativeArray to java List.
+     * @param na native array
+     * @return java list
+     */
     public static List rhino2javaNativeArray(NativeArray na) {
         List result = new ArrayList();
         for (int i = 0; i < na.getLength(); ++i) {
@@ -57,12 +63,22 @@ public class RhinoJava extends WrapFactory {
         return result;
     }
 
-    public static Map rhino2javaScriptableObject (ScriptableObject sObj) {
+    /**
+     * Convert Rhino ScriptableObject to java Map.  Javascript function
+     * properties are ignored.
+     * @param sObj scriptable object
+     * @return java map
+     */
+    public static Map rhino2javaScriptableObject(ScriptableObject sObj) {
         Map result = new LinkedHashMap();
         Object[] ids = sObj.getIds();
         for (int i = 0; i < ids.length; i++) {
             String id = ids[i].toString();
-            result.put(id, rhino2java(sObj.get(id, null)));
+            Object value = sObj.get(id, null);
+            // don't include functions
+            if (!(value instanceof BaseFunction)) {
+                result.put(id, rhino2java(value));
+            }
         }
         return result;
     }
