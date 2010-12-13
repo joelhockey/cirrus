@@ -38,16 +38,16 @@
     log("doing db migration.  " + msg);
 
     // look in dir /db to find required files
-    var files = getResourcePaths("/db/") || [];
+    var files = getResourcePaths("/db/migrate/") || [];
     if (!files || files.length === 0) {
-        throw new java.sql.SQLException("No files found in /db/");
+        throw new java.sql.SQLException("No files found in /db/migrate/");
     }
-    log("files in '/db/':", files)
+    log("files in '/db/migrate/':", files)
     var fileMap = {};
     for (var file in files) {
         // check for filename format <nnn>_<desc>.sql
         var match;
-        if (match = /^\/db\/(\d{3})_.*\.sql$/.exec(file)) {
+        if (match = /^\/db\/migrate\/(\d{3})_.*\.sql$/.exec(file)) {
             var filenum = parseInt(match[1]);
             if (filenum > dbversion && filenum <= version) {
                 // check for duplicates
@@ -76,4 +76,4 @@
         DB.execute(sql);
         timer.mark(fileMap[i]);
     }
-})()
+})();

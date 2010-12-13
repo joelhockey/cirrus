@@ -1,5 +1,9 @@
-urlid cirrus
-url jdbc:hsqldb:file:hsqldb/cirrus
+urlid cirrusdev
+url jdbc:hsqldb:file:hsqldb/dev/cirrus
 username sa
 password
 
+urlid cirrustest
+url jdbc:hsqldb:file:hsqldb/test/cirrus
+username sa
+password

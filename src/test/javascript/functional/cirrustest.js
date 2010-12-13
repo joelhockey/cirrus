@@ -2,7 +2,7 @@ CirrusTest = {
     setUp: function() {
         var ic = new javax.naming.InitialContext();
         var ds = new org.hsqldb.jdbc.jdbcDataSource();
-        ds.setDatabase("jdbc:hsqldb:file:hsqldb/cirrus");
+        ds.setDatabase("jdbc:hsqldb:file:hsqldb/dev/cirrus");
         ds.setUser("sa");
         ic.bind("jdbc/cirrus", com.mchange.v2.c3p0.DataSources.pooledDataSource(ds));
 

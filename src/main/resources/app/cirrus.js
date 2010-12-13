@@ -41,7 +41,7 @@ cirrus.service = function() {
     var ctlr;
     try {
         try {
-            load("/app/controllers/" + controller + ".js");
+            load("/app/controllers/" + controller + "_controller.js");
             ctlr = this.controllers[controller];
             if (!ctlr) {
                 throw null;

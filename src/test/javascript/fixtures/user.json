@@ -1,0 +1,12 @@
+[
+    {
+        username: "alice",
+        salt: "00000000000000000000000000000000",
+        hashed_password: ""
+    },
+    {
+        username: "bob",
+        salt: "00000000000000000000000000000000",
+        hashed_password: ""
+    },
+]
