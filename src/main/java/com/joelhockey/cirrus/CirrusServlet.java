@@ -19,7 +19,6 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeJavaObject;
-import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
@@ -105,13 +104,13 @@ public class CirrusServlet extends HttpServlet {
         }
 
         DB db = null;
-        CirrusScope scope = THREAD_SCOPES.get();
-        scope.getTimer().start();
+        Cirrus cirrus = THREAD_SCOPES.get().getCirrus();
+        cirrus.getTimer().start();
         try {
             db = new DB(DATA_SOURCE);
-            scope.put("DB", scope, db);
-            scope.load("/db/migrate.js");
-            scope.delete("DB");
+            cirrus.put("DB", cirrus, db);
+            cirrus.load("/db/migrate.js");
+            cirrus.delete("DB");
         } catch (Exception e) {
             log.error("Error migrating db", e);
             throw new ServletException("Error migrating db", e);
@@ -119,7 +118,7 @@ public class CirrusServlet extends HttpServlet {
             if (db != null) {
                 db.close();
             }
-            scope.getTimer().end("DB Migration");
+            cirrus.getTimer().end("DB Migration");
         }
         STATIC_INIT = true;
     }
@@ -137,32 +136,31 @@ public class CirrusServlet extends HttpServlet {
                 DEBUGGERS.get();
             }
 
-            CirrusScope scope = THREAD_SCOPES.get();
-            scope.getTimer().start();
-            scope.load("/app/cirrus.js");
+            Cirrus cirrus = THREAD_SCOPES.get().getCirrus();
+            cirrus.getTimer().start();
+            cirrus.load("/app/cirrus.js");
             // put request and response in global scope so they are accessible to controllers, models and views
-            scope.put("request", scope, new NativeJavaObject(scope, req, HttpServletRequest.class));
-            scope.put("response", scope, new NativeJavaObject(scope, res, HttpServletResponse.class));
+            cirrus.put("request", cirrus, new NativeJavaObject(cirrus, req, HttpServletRequest.class));
+            cirrus.put("response", cirrus, new NativeJavaObject(cirrus, res, HttpServletResponse.class));
 
             // set up DB
             DB db = new DB(DATA_SOURCE);
-            scope.put("DB", scope, db);
+            cirrus.put("DB", cirrus, db);
 
             Context cx = Context.enter();
             try {
                 // 'cirrus.service()'
-                NativeObject cirrus = (NativeObject) scope.get("cirrus", scope);
                 Function service = (Function) cirrus.get("service", cirrus);
-                service.call(cx, scope, cirrus, new Object[0]);
+                service.call(cx, cirrus, cirrus, new Object[0]);
             } finally {
                 Context.exit();
                 // close DB
                 db.close();
 
                 // don't keep reference to Servlet objects
-                scope.delete("request");
-                scope.delete("response");
-                scope.getTimer().end(req.getMethod() + " " + req.getRequestURI());
+                cirrus.delete("request");
+                cirrus.delete("response");
+                cirrus.getTimer().end(req.getMethod() + " " + req.getRequestURI());
             }
         } catch (Exception e) {
             log.error("Error running cirrus", e);

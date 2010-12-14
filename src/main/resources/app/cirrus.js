@@ -1,15 +1,22 @@
 // Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
 
-var cirrus = cirrus || {controllers: {}};
+// publicPaths contains all dirs and files in public root
+// if first part of path matches one of these, then we use public controller
+cirrus.publicPaths = {};
+for (var path in cirrus.getResourcePaths("/public/")) {
+    var part = path.split("/")[2];
+    cirrus.log("public path: " + part)
+    cirrus.publicPaths[part] = part;
+}
 
 /**
  * Dispatch request.
- * Existing global vars:
+ * Existing cirrus vars:
  * - servletConfig javax.servlet.ServletConfig
  * - servletContext javax.servlet.ServletContext
  * - request javax.servlet.http.HttpServletRequest
  * - response javax.servlet.http.HttpServletResponse
- * Create global vars:
+ * Create cirrus vars:
  * - flash
  * - method
  * - path
@@ -17,37 +24,37 @@ var cirrus = cirrus || {controllers: {}};
  * - controller
  * - action
  */
-cirrus.service = function() {
-    flash = {};
-    method = String(request.getMethod());
-    params = {};
-    for (var en = request.getParameterNames(); en.hasMoreElements();) {
+cirrus.service = function(env) {
+    env.flash = {};
+    env.method = String(this.request.getMethod());
+    this.params = {};
+    for (var en = this.request.getParameterNames(); en.hasMoreElements();) {
         var key = en.nextElement();
-        params[String(key)] = String(request.getParameter(key));
+        this.params[String(key)] = String(this.request.getParameter(key));
     }
 
-    path = String(request.getRequestURI());
+    this.path = String(this.request.getRequestURI());
     
     var pathdirs = path.split("/");
     // use 'index' as default controller and action
-    controller = pathdirs[1] || "index";
-    action = pathdirs[2] || "index";
+    this.controller = pathdirs[1] || "index";
+    this.action = pathdirs[2] || "index";
     
     // use public controller if path is in public dir
-    if (cirrus.publicPaths[controller]) {
-        controller = "public";
+    if (this.publicPaths[this.controller]) {
+        this.controller = "public";
     }
 
     var ctlr;
     try {
         try {
-            load("/app/controllers/" + controller + "_controller.js");
+            this.load("/app/controllers/" + controller + "_controller.js");
             ctlr = this.controllers[controller];
             if (!ctlr) {
                 throw null;
             }
         } catch (e) {
-            logwarn("warning, no controller defined for path: " + path);
+            this.logwarn("warning, no controller defined for path: " + this.path);
             throw 404;
         }
 
@@ -57,32 +64,32 @@ cirrus.service = function() {
         }
 
         // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
-        if (method === "GET" && ctlr.getLastModified) {
+        if (this.method === "GET" && ctlr.getLastModified) {
             var pageLastMod = ctlr.getLastModified()
             if (pageLastMod >= 0) {
-                if (pageLastMod - request.getDateHeader("If-Modified-Since") < 1000) {
-                    response.setStatus(304); // Not Modified
+                if (pageLastMod - this.request.getDateHeader("If-Modified-Since") < 1000) {
+                    this.response.setStatus(304); // Not Modified
                     return; // early exit
                 } else {
-                    if (!response.containsHeader("Last-Modified") && pageLastMod >= 0) {
-                        response.setDateHeader("Last-Modified", pageLastMod)
+                    if (!this.response.containsHeader("Last-Modified") && pageLastMod >= 0) {
+                        this.response.setDateHeader("Last-Modified", pageLastMod)
                     }
                 }
             }
         }
     
         // find method handler or 405
-        var methodHandler = ctlr[method] || ctlr.$;
+        var methodHandler = ctlr[this.method] || ctlr.$;
         if (!methodHandler) {
             // return 405 Method Not Allowed
-            logwarn("warning, no method handler for path: " + path);
-            response.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
+            this.logwarn("warning, no method handler for path: " + path);
+            this.response.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
             throw 405;
         }
-        var actionHandler = methodHandler[action] || methodHandler.$;
+        var actionHandler = methodHandler[this.action] || methodHandler.$;
         var args = pathdirs.slice(3);
         if (!(actionHandler instanceof Function) || actionHandler.arity !== args.length) {
-            logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
+            this.logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
             throw 404;
         }
         actionHandler.apply(ctlr, args);
@@ -93,9 +100,9 @@ cirrus.service = function() {
         if (typeof e === "number") {
             status = e;
         } else {
-            logerror("internal server error", e);
+            this.logerror("internal server error", e);
         }
-        response.setStatus(status);
+        this.response.setStatus(status);
         if (status >= 400) { // only show error page for 4xx, 5xx
             jst("errors", String(status), this);
         }
@@ -103,21 +110,3 @@ cirrus.service = function() {
         ctlr && ctlr.after && ctlr.after();
     }
 };
-
-// publicPaths contains all dirs and files in public root
-// if first part of path matches one of these, then we use public controller
-cirrus.publicPaths = {};
-for (var path in getResourcePaths("/public/")) {
-    var part = path.split("/")[2];
-    log("public path: " + part)
-    cirrus.publicPaths[part] = part;
-}
-
-// add some global helpers
-if (typeof Object.create !== "function") {
-    Object.create = function(o) {
-        var F = function() {}
-        F.prototype = o;
-        return new F();
-    }
-}

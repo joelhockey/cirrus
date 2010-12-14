@@ -326,12 +326,3 @@ var h = h || function(s, out) {
         return result;
     }
 }
-
-// JST relies on Object.create
-if (typeof Object.create !== "function") {
-    Object.create = function(o) {
-        function F() {}
-        F.prototype = o;
-        return new F();
-    }
-}
