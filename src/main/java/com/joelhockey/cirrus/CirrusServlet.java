@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.sql.Connection;
 
 import javax.naming.InitialContext;
-import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -19,6 +18,9 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeJavaObject;
+import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
@@ -33,27 +35,8 @@ public class CirrusServlet extends HttpServlet {
     private static boolean STATIC_INIT = false;
     private static boolean DEBUG_JS = false;
     private static DataSource DATA_SOURCE;
-    private static ServletConfig SERVLET_CONFIG;
     static final RhinoJava WRAP_FACTORY = new RhinoJava();
-    static ThreadLocal<CirrusScope> THREAD_SCOPES = new ThreadLocal<CirrusScope>() {
-        @Override
-        protected CirrusScope initialValue() {
-            return new CirrusScope(SERVLET_CONFIG);
-        }
-    };
-    static ThreadLocal<Main> DEBUGGERS = new ThreadLocal<Main>() {
-        @Override
-        protected Main initialValue() {
-            // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
-            Main main = new Main("Cirrus Debug " + Thread.currentThread().getName());
-            main.setScope(THREAD_SCOPES.get());
-            main.attachTo(ContextFactory.getGlobal());
-            main.pack();
-            main.setSize(960, 720);
-            main.setVisible(true);
-            return main;
-        }
-    };
+    static CirrusScope SCOPE;
 
     /** Context Factory to set wrap factory and opt level. */
     static class CirrusContextFactory extends ContextFactory {
@@ -81,12 +64,18 @@ public class CirrusServlet extends HttpServlet {
      */
     private synchronized void staticInit() throws ServletException {
         if (STATIC_INIT) return;
-        SERVLET_CONFIG = getServletConfig();
+        SCOPE = new CirrusScope(getServletConfig());
 
         // check if running in debug mode
         if (System.getProperty("debugjs") != null) {
             DEBUG_JS = true;
-            DEBUGGERS.get();
+            // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
+            Main main = new Main("Cirrus Debug");
+            main.setScope(SCOPE);
+            main.attachTo(ContextFactory.getGlobal());
+            main.pack();
+            main.setSize(960, 720);
+            main.setVisible(true);
         }
 
         // get datasource using 'dbname' servlet init-param
@@ -104,8 +93,8 @@ public class CirrusServlet extends HttpServlet {
         }
 
         DB db = null;
-        Cirrus cirrus = THREAD_SCOPES.get().getCirrus();
-        cirrus.getTimer().start();
+        Cirrus cirrus = SCOPE.getCirrus();
+        Timer timer = new Timer();
         try {
             db = new DB(DATA_SOURCE);
             cirrus.put("DB", cirrus, db);
@@ -118,7 +107,7 @@ public class CirrusServlet extends HttpServlet {
             if (db != null) {
                 db.close();
             }
-            cirrus.getTimer().end("DB Migration");
+            timer.end("DB Migration");
         }
         STATIC_INIT = true;
     }
@@ -131,36 +120,33 @@ public class CirrusServlet extends HttpServlet {
     @Override
     public void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         try {
-            if (DEBUG_JS) {
-                // launches Rhino Swing debugger attached to this thread / scope
-                DEBUGGERS.get();
-            }
-
-            Cirrus cirrus = THREAD_SCOPES.get().getCirrus();
-            cirrus.getTimer().start();
+            Cirrus cirrus = SCOPE.getCirrus();
             cirrus.load("/app/cirrus.js");
-            // put request and response in global scope so they are accessible to controllers, models and views
-            cirrus.put("request", cirrus, new NativeJavaObject(cirrus, req, HttpServletRequest.class));
-            cirrus.put("response", cirrus, new NativeJavaObject(cirrus, res, HttpServletResponse.class));
-
-            // set up DB
-            DB db = new DB(DATA_SOURCE);
-            cirrus.put("DB", cirrus, db);
 
             Context cx = Context.enter();
+            // create env, set cirrus as proto
+            NativeObject env = new NativeObject();
+            ScriptRuntime.setObjectProtoAndParent(cirrus, SCOPE);
+
+            // set up DB, timer
+            DB db = new DB(DATA_SOURCE);
+            env.put("db", env, db);
+            Timer timer = new Timer();
+            env.put("timer", env, timer);
+
+            // servlet request, response
+            env.put("request", env, new NativeJavaObject(SCOPE, req, HttpServletRequest.class));
+            env.put("response", env, new NativeJavaObject(SCOPE, res, HttpServletResponse.class));
+
             try {
-                // 'cirrus.service()'
+                // 'cirrus.service(env)'
                 Function service = (Function) cirrus.get("service", cirrus);
-                service.call(cx, cirrus, cirrus, new Object[0]);
+                service.call(cx, cirrus, cirrus, new Object[] {env});
             } finally {
                 Context.exit();
-                // close DB
+                // close DB, record time
                 db.close();
-
-                // don't keep reference to Servlet objects
-                cirrus.delete("request");
-                cirrus.delete("response");
-                cirrus.getTimer().end(req.getMethod() + " " + req.getRequestURI());
+                timer.end(req.getMethod() + " " + req.getRequestURI());
             }
         } catch (Exception e) {
             log.error("Error running cirrus", e);

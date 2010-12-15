@@ -46,6 +46,7 @@ import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
 
+import com.joelhockey.cirrus.Cirrus.CacheEntry;
 import com.joelhockey.cirrus.RhinoJava.RhinoList;
 
 /**
@@ -60,19 +61,14 @@ public class Cirrus extends NativeObject {
     /** Time to wait before reloading changed js file. */
     public static final long RELOAD_WAIT = 10000;
 
-    // static maps hold all compiled scripts
-    private static Map<String, CacheEntry<Script>> SCRIPT_CACHE = new HashMap<String, CacheEntry<Script>>();
-    private static Map<String, CacheEntry<Object>> LAST_MOD_CACHE = new HashMap<String, CacheEntry<Object>>();
-
-    // local maps get populated when compiled scripts are executed in current scope
-    private Map<String, CacheEntry<Script>> localScriptCache = new HashMap<String, CacheEntry<Script>>();
-    private Map<String, CacheEntry<NativeObject>> templateCache = new HashMap<String, CacheEntry<NativeObject>>();
+    // maps hold all scripts
+    private Map<String, CacheEntry> cache = new HashMap<String, CacheEntry>();
+    private Scriptable global;
     private ServletConfig servletConfig;
-    private Timer timer = new Timer();
     private Scriptable controllers;
 
     /**
-     * Create Cirrus instance.  Adds various global methods.
+     * Create Cirrus instance.
      * @param global global scope
      * @param servletConfig servlet config used to access files within web context
      */
@@ -102,7 +98,6 @@ public class Cirrus extends NativeObject {
         defineFunctionProperties(names, Cirrus.class, ScriptableObject.DONTENUM);
         put("servletConfig", this, servletConfig);
         put("servletContext", this, servletConfig.getServletContext());
-        put("timer", this, timer);
         Context.exit();
     }
 
@@ -145,13 +140,13 @@ public class Cirrus extends NativeObject {
      * @throws IOException if file not exists
      */
     public long fileLastModified(String path) throws IOException {
-            CacheEntry<Object> entry = cacheLookup(LAST_MOD_CACHE, path);
+            CacheEntry entry = cacheLookup(path);
             if (entry == null) {
                 // not in cache, or stale
-                entry = new CacheEntry<Object>(
+                entry = new CacheEntry(
                         getResource(path).getLastModified(),
-                        System.currentTimeMillis(), null);
-                LAST_MOD_CACHE.put(path, entry);
+                        System.currentTimeMillis());
+                cache.put(path, entry);
             }
             return entry.lastModified;
     }
@@ -278,9 +273,6 @@ public class Cirrus extends NativeObject {
         return result;
     }
 
-    /** @return timer */
-    public Timer getTimer() { return timer; }
-
     /**
      * HTML escape.  If writer included, escaped string written to writer
      * and empty string returned, else escaped string returned
@@ -317,38 +309,30 @@ public class Cirrus extends NativeObject {
      * @throws IOException if error reading file
      */
     public boolean load(String path) throws IOException {
-        CacheEntry<Script> entry = cacheLookup(localScriptCache, path);
+        CacheEntry entry = cacheLookup(path);
         if (entry != null) {
             return false;
         }
 
-        // execute script in current scope
+        // evaluate script
         Context cx = Context.enter();
         try {
             // ensure we are using our WrapFactory
             cx.setWrapFactory(CirrusServlet.WRAP_FACTORY);
-            entry = cacheLookup(SCRIPT_CACHE, path);
-            if (entry == null) {
-                // compile script and store in static SCRIPT_CACHE
-                URLConnection urlc = getResource(path);
-                Reader reader = new BufferedReader(new InputStreamReader(
-                        urlc.getInputStream()));
-                try {
-                    log.info("compiling script: " + path);
-                    Script script = cx.compileReader(
-                            reader, urlc.getURL().toString(), 1, null);
-                    entry = new CacheEntry<Script>(urlc.getLastModified(),
-                            System.currentTimeMillis(), script);
-                    SCRIPT_CACHE.put(path, entry);
-                } finally {
-                    reader.close();
-                }
+            // compile script
+            URLConnection urlc = getResource(path);
+            Reader reader = new BufferedReader(new InputStreamReader(
+                    urlc.getInputStream()));
+            try {
+                log.info("evaluating script: " + path);
+                cx.evaluateReader(global, reader,
+                        urlc.getURL().toString(), 1, null);
+                entry = new CacheEntry(urlc.getLastModified(),
+                        System.currentTimeMillis());
+                cache.put(path, entry);
+            } finally {
+                reader.close();
             }
-            log.info("executing script: " + path);
-            Script script = entry.object;
-            script.exec(cx, this);
-            // save to local scope cache
-            localScriptCache.put(path, entry);
             return true;
         } finally {
             Context.exit();
@@ -470,43 +454,57 @@ public class Cirrus extends NativeObject {
     }
 
     /**
-     * Render specified JST template.  Optional parameters are ctlr, action and context.
-     * If not specified, ctlr uses global variable 'controller', action uses global 'action'
-     * and context uses the controller.
-     * @param args is either [], [action], [context], [action, context], [ctlr, action], [ctlr, action, context]
+     * Render specified JST template.  Optional parameters are
+     * ctlr, action and context.
+     * If not specified, ctlr uses 'this.controller', action uses 'this.action'
+     * and context uses 'this'.
+     * @param cx context
+     * @param thisObj should be 'env'.  Must contain timer, controller, action
+     * @param args args is either [], [action], [context], [ctlr, action],
+     * [action, context], [ctlr, action, context]
+     * @parma funObj ?
      * @throws IOException if error loading template
      */
-    public void jst(Object arg1, Object arg2, Object arg3) throws IOException {
+    public static void jst(Context cx, Scriptable thisObj,
+            Object[] args, Function funObj) throws IOException {
+
+        Timer timer = (Timer) ((NativeJavaObject)
+                thisObj.get("timer", thisObj)).unwrap();
         timer.mark("action");
-        // shift all args to the right until we get a string in arg2
-        // then arg1=ctlr, arg2=action, arg3=context
-        for (int i = 0; i < 2; i++) {
-            if (!(arg2 instanceof String)) {
-                arg3 = arg2;
-                arg2 = arg1;
-                arg1 = Undefined.instance; // bears in the bed - they all roll over and one falls out
-            }
-        }
-        String controller = (String) (arg1 == Undefined.instance ? get("controller", this) : arg1);
-        String action = (String) (arg2 == Undefined.instance ? get("action", this) : arg2);
-        Object context = arg3;
-        if (arg3 == Undefined.instance) {
-            // 'var context = cirrus.controllers[controller] || cirrus'
-            context = controllers.get(controller, controllers);
-            if (context == Scriptable.NOT_FOUND) {
-                context = this;
+
+        // assume default args=[]
+        String controller = (String) thisObj.get("controller", thisObj);
+        String action = (String) thisObj.get("action", thisObj);
+        Object context = thisObj;
+        if (args != null) {
+            if (args.length == 1) {
+                if (args[0] instanceof String) { // args=[action]
+                    action = (String) args[0];
+                } else { // args=[context]
+                    context = args[0];
+                }
+            } else if (args.length == 2) {
+                if (args[1] instanceof String) { // args=[ctlr, action]
+                    controller = (String) args[0];
+                    action = (String) args[1];
+                } else { // args=[action, context]
+                    action = (String) args[0];
+                    context = args[1];
+                }
+            } else { // args=[ctlr, action, context]
+                controller = (String) args[0];
+                action = (String) args[1];
+                context = args[2];
             }
         }
 
-        // reload 'jst.js'.  Clear templateCache if jst.js has changed
-        if (load("/app/jst.js")) {
-            templateCache.clear();
-        }
+        // (re)load 'jst.js'
+        load("/app/jst.js");
 
         String name = controller + "." + action;
         Context cx = Context.enter();
         try {
-            NativeObject template = loadjst(name, cx, null).object;
+            NativeObject template = loadjst(name, cx, null);
             NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
             HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
             res.setContentType("text/html");
@@ -519,16 +517,22 @@ public class Cirrus extends NativeObject {
         }
     }
 
-    private CacheEntry<NativeObject> loadjst(String name, Context cx,
+    private NativeObject loadjst(String name, Context cx,
             Set<String> deps) throws IOException {
 
+        // lookup in cache[name] and in JST.templates[name]
         String path = "/app/views/" + name.replace('.', '/') + ".jst";
-        CacheEntry<NativeObject> result = cacheLookup(templateCache, path);
-        if (result != null) {
-            return result;  // found in cache
+        CacheEntry cacheResult = cacheLookup(path);
+
+        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
+        ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
+        NativeObject template = (NativeObject) templates.get(name, templates);
+
+        if (cacheResult != null && template != ScriptableObject.NOT_FOUND) {
+            return template;  // found in cache
         }
 
-        // not found in cache, must compile and execute
+        // not found or file changed, must compile and execute
         log.info("loadjst: " + path);
         String jstFile = readFile(path, null);
         // if prototype or render/partial declared, then try to load deps
@@ -548,66 +552,50 @@ public class Cirrus extends NativeObject {
             }
         }
 
-        CacheEntry<Script> entry = cacheLookup(SCRIPT_CACHE, path);
-        if (entry == null) {
-            // call JST.parse(<jst file contents>)
-            ScriptableObject jstObj = (ScriptableObject) get("JST", this);
-            Function parse = (Function) jstObj.get("parse", jstObj);
-            try {
-                log.info("JST.parse(" + name + ".jst)");
-                String source = (String) parse.call(cx, this, this, new Object[] {name, jstFile});
-                File tempDir = (File) servletConfig.getServletContext().getAttribute("javax.servlet.context.tempdir");
-                String sourceName = "views/" + name + ".js";
-                if (tempDir != null) {
-                    File jstDir = new File(tempDir, "jst");
-                    jstDir.mkdir();
-                    File compiledJstFile = new File(jstDir, name + ".js");
-                    sourceName = compiledJstFile.toURI().toString();
-                    log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
-                    FileOutputStream fos = new FileOutputStream(compiledJstFile);
-                    try {
-                        fos.write(source.getBytes());
-                    } finally {
-                        fos.close();
-                    }
+        // call JST.parse(<jst file contents>)
+        Function parse = (Function) jstObj.get("parse", jstObj);
+        try {
+            log.info("JST.parse(" + name + ".jst)");
+            String source = (String) parse.call(cx, global, jstObj, new Object[] {name, jstFile});
+            File tempDir = (File) servletConfig.getServletContext().getAttribute("javax.servlet.context.tempdir");
+            String sourceName = "views/" + name + ".js";
+            if (tempDir != null) {
+                File jstDir = new File(tempDir, "jst");
+                jstDir.mkdir();
+                File compiledJstFile = new File(jstDir, name + ".js");
+                sourceName = compiledJstFile.toURI().toString();
+                log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
+                FileOutputStream fos = new FileOutputStream(compiledJstFile);
+                try {
+                    fos.write(source.getBytes());
+                } finally {
+                    fos.close();
                 }
-                Script script = cx.compileString(source, sourceName, 1, null);
-                URLConnection urlc = getResource(path);
-                entry = new CacheEntry<Script>(urlc.getLastModified(),
-                        System.currentTimeMillis(), script);
-                SCRIPT_CACHE.put(path, entry);
-            } catch (JavaScriptException jse) {
-                    IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
-                    ioe.initCause(jse);
-                    throw ioe;
             }
+            cx.evaluateString(global, source, sourceName, 1, null);
+            URLConnection urlc = getResource(path);
+
+            CacheEntry entry = new CacheEntry(urlc.getLastModified(),
+                    System.currentTimeMillis());
+            cache.put(path, entry);
+        } catch (JavaScriptException jse) {
+                IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
+                ioe.initCause(jse);
+                throw ioe;
         }
 
-        // execute compiled JST code in this scope
-        entry.object.exec(cx, this);
-
         // return 'JST.templates[name]'
-        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
-        ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
-        NativeObject template = (NativeObject) templates.get(name, templates);
-        result = new CacheEntry<NativeObject>(entry.lastModified,
-                entry.lastChecked, template);
-        templateCache.put(path, result);
-        return result;
+        return (NativeObject) templates.get(name, templates);
     }
 
     /**
      * Return cache entry if valid, or null if item not in cache or stale.
-     * @param <T> type of cache object
-     * @param cache cache to search
      * @param path cache lookup key used with {@link ServletContext#getResource(String)}
      * @return cache entry or null if item not in cache or stale
      * @throws IOException if resource not found
      */
-    private <T> CacheEntry<T> cacheLookup(Map<String, CacheEntry<T>> cache,
-            String path) throws IOException {
-
-        CacheEntry<T> entry = cache.get(path);
+    private CacheEntry cacheLookup(String path) throws IOException {
+        CacheEntry entry = cache.get(path);
         if (entry != null) {
             long now = System.currentTimeMillis();
             if (entry.lastChecked + RELOAD_WAIT > now) {
@@ -626,52 +614,12 @@ public class Cirrus extends NativeObject {
         return null;
     }
 
-    static class CacheEntry<T> {
+    static class CacheEntry {
         long lastModified;
         long lastChecked;
-        T object;
-        CacheEntry(long lastModified, long lastcheck, T object) {
+        CacheEntry(long lastModified, long lastcheck) {
             this.lastModified = lastModified;
             this.lastChecked = lastcheck;
-            this.object = object;
         }
     }
-
-    public static class Timer {
-        private static final Log log = LogFactory.getLog("cirrus.timer");
-        private long[] times = new long[4];
-        private String[] descs = new String[4];
-        private int len = 0;
-        /** start timer */
-        public void start() {
-            times[0] = System.currentTimeMillis();
-            len = 1;
-        }
-        /** save current time and desc to be printed at end. */
-        public void mark(String desc) {
-            if (len == times.length && len < 256) { // grow storage up to 256
-                long[] tmpTimes = new long[times.length * 2];
-                System.arraycopy(times, 0, tmpTimes, 0, times.length);
-                times = tmpTimes;
-                String[] tmpDescs = new String[descs.length * 2];
-                System.arraycopy(descs, 0, tmpDescs, 0, descs.length);
-                descs = tmpDescs;
-            }
-            times[len] = System.currentTimeMillis();
-            descs[len++] = desc;
-        }
-        /** print total time and desc, as well as any marks */
-        public void end(String desc) {
-            if (!log.isInfoEnabled()) {
-                return;
-            }
-            StringBuilder sb = new StringBuilder();
-            sb.append(System.currentTimeMillis() - times[0]).append(": ").append(desc);
-            for (int i = 1; i < len; i++) {
-                sb.append(", ").append(times[i] - times[i - 1]).append(": ").append(descs[i]);
-            }
-            log.info(sb.toString());
-        }
-    }
-
 }

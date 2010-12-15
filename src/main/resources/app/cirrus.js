@@ -11,12 +11,16 @@ for (var path in cirrus.getResourcePaths("/public/")) {
 
 /**
  * Dispatch request.
- * Existing cirrus vars:
+ * cirrus props:
  * - servletConfig javax.servlet.ServletConfig
  * - servletContext javax.servlet.ServletContext
+ * - timer com.joelhockey.cirrus.Timer
+ * - controllers Object
+ * env props:
+ * - db com.joelhockey.cirrus.DB
  * - request javax.servlet.http.HttpServletRequest
  * - response javax.servlet.http.HttpServletResponse
- * Create cirrus vars:
+ * Create env props:
  * - flash
  * - method
  * - path
@@ -26,40 +30,40 @@ for (var path in cirrus.getResourcePaths("/public/")) {
  */
 cirrus.service = function(env) {
     env.flash = {};
-    env.method = String(this.request.getMethod());
-    this.params = {};
-    for (var en = this.request.getParameterNames(); en.hasMoreElements();) {
+    env.method = String(env.request.getMethod());
+    env.params = {};
+    for (var en = env.request.getParameterNames(); en.hasMoreElements();) {
         var key = en.nextElement();
-        this.params[String(key)] = String(this.request.getParameter(key));
+        env.params[String(key)] = String(env.request.getParameter(key));
     }
 
-    this.path = String(this.request.getRequestURI());
+    env.path = String(env.request.getRequestURI());
     
     var pathdirs = path.split("/");
     // use 'index' as default controller and action
-    this.controller = pathdirs[1] || "index";
-    this.action = pathdirs[2] || "index";
+    env.controller = pathdirs[1] || "index";
+    env.action = pathdirs[2] || "index";
     
     // use public controller if path is in public dir
-    if (this.publicPaths[this.controller]) {
-        this.controller = "public";
+    if (cirrus.publicPaths[env.controller]) {
+        env.controller = "public";
     }
 
     var ctlr;
     try {
         try {
-            this.load("/app/controllers/" + controller + "_controller.js");
-            ctlr = this.controllers[controller];
+            cirrus.load("/app/controllers/" + env.controller + "_controller.js");
+            ctlr = cirrus.controllers[env.controller];
             if (!ctlr) {
                 throw null;
             }
         } catch (e) {
-            this.logwarn("warning, no controller defined for path: " + this.path);
+            cirrus.logwarn("warning, no controller defined for path: " + env.path);
             throw 404;
         }
 
         // call before
-        if (ctlr.before && ctlr.before() === false) {
+        if (ctlr.before && ctlr.before.call(env) === false) {
             return; // return early, request fully serviced
         }
 
