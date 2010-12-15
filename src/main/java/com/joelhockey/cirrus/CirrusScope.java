@@ -31,6 +31,7 @@ public class CirrusScope extends ImporterTopLevel {
         // add some of the cirrus functions into global
         String[] names = {
             "dir",
+            "h",
             "load",
             "log",
             "print",

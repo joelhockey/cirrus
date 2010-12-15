@@ -301,6 +301,83 @@ public class Cirrus extends NativeObject {
         return StringEscapeUtils.escapeHtml(s);
     }
 
+    public NativeObject jst(String name) throws IOException {
+        Context cx = Context.enter();
+        try {
+            return loadjst(cx, name, new HashSet<String>());
+        } finally {
+            Context.exit();
+        }
+    }
+
+    private NativeObject loadjst(Context cx, String name,
+            Set<String> deps) throws IOException {
+
+        // lookup in cache[name] and in JST.templates[name]
+        String path = "/app/views/" + name.replace('.', '/') + ".jst";
+        CacheEntry cacheResult = cacheLookup(path);
+
+        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
+        ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
+        NativeObject template = (NativeObject) templates.get(name, templates);
+
+        if (cacheResult != null && template != ScriptableObject.NOT_FOUND) {
+            return template;  // found in cache
+        }
+
+        // not found or file changed, must compile and execute
+        log.info("loadjst: " + path);
+        String jstFile = readFile(path, null);
+        // if prototype or render/partial declared, then try to load deps
+        Pattern p = Pattern.compile("\\{[ \\t]*(prototype|render)[ \\t]+([^\\s{}]+)[ \\t]*\\}");
+        Matcher m = p.matcher(jstFile);
+        while (m.find()) {
+            String dep = m.group(2);
+            if (!deps.contains(dep)) {
+                deps.add(dep);
+                log.debug("loading jst " + name + " dependency " + dep);
+                loadjst(cx, dep, deps);
+            } else {
+                log.debug("ignoring circular dependency " + name + " > " + dep);
+            }
+        }
+
+        // call JST.parse(<jst file contents>)
+        Function parse = (Function) jstObj.get("parse", jstObj);
+        try {
+            log.info("JST.parse(" + name + ".jst)");
+            String source = (String) parse.call(cx, global, jstObj, new Object[] {name, jstFile});
+            File tempDir = (File) servletConfig.getServletContext().getAttribute("javax.servlet.context.tempdir");
+            String sourceName = "views/" + name + ".js";
+            if (tempDir != null) {
+                File jstDir = new File(tempDir, "jst");
+                jstDir.mkdir();
+                File compiledJstFile = new File(jstDir, name + ".js");
+                sourceName = compiledJstFile.toURI().toString();
+                log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
+                FileOutputStream fos = new FileOutputStream(compiledJstFile);
+                try {
+                    fos.write(source.getBytes());
+                } finally {
+                    fos.close();
+                }
+            }
+            cx.evaluateString(global, source, sourceName, 1, null);
+            URLConnection urlc = getResource(path);
+
+            CacheEntry entry = new CacheEntry(urlc.getLastModified(),
+                    System.currentTimeMillis());
+            cache.put(path, entry);
+        } catch (JavaScriptException jse) {
+                IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
+                ioe.initCause(jse);
+                throw ioe;
+        }
+
+        // return 'JST.templates[name]'
+        return (NativeObject) templates.get(name, templates);
+    }
+
     /**
      * Load javascript file into this scope.  File will only be executed if it doesn't
      * already exist, or if it has been modified since it was last loaded.
@@ -319,12 +396,11 @@ public class Cirrus extends NativeObject {
         try {
             // ensure we are using our WrapFactory
             cx.setWrapFactory(CirrusServlet.WRAP_FACTORY);
-            // compile script
             URLConnection urlc = getResource(path);
             Reader reader = new BufferedReader(new InputStreamReader(
                     urlc.getInputStream()));
             try {
-                log.info("evaluating script: " + path);
+                log.info("loading: " + path);
                 cx.evaluateReader(global, reader,
                         urlc.getURL().toString(), 1, null);
                 entry = new CacheEntry(urlc.getLastModified(),
@@ -451,141 +527,6 @@ public class Cirrus extends NativeObject {
         }
 
         return RhinoJSON.stringify(args);
-    }
-
-    /**
-     * Render specified JST template.  Optional parameters are
-     * ctlr, action and context.
-     * If not specified, ctlr uses 'this.controller', action uses 'this.action'
-     * and context uses 'this'.
-     * @param cx context
-     * @param thisObj should be 'env'.  Must contain timer, controller, action
-     * @param args args is either [], [action], [context], [ctlr, action],
-     * [action, context], [ctlr, action, context]
-     * @parma funObj ?
-     * @throws IOException if error loading template
-     */
-    public static void jst(Context cx, Scriptable thisObj,
-            Object[] args, Function funObj) throws IOException {
-
-        Timer timer = (Timer) ((NativeJavaObject)
-                thisObj.get("timer", thisObj)).unwrap();
-        timer.mark("action");
-
-        // assume default args=[]
-        String controller = (String) thisObj.get("controller", thisObj);
-        String action = (String) thisObj.get("action", thisObj);
-        Object context = thisObj;
-        if (args != null) {
-            if (args.length == 1) {
-                if (args[0] instanceof String) { // args=[action]
-                    action = (String) args[0];
-                } else { // args=[context]
-                    context = args[0];
-                }
-            } else if (args.length == 2) {
-                if (args[1] instanceof String) { // args=[ctlr, action]
-                    controller = (String) args[0];
-                    action = (String) args[1];
-                } else { // args=[action, context]
-                    action = (String) args[0];
-                    context = args[1];
-                }
-            } else { // args=[ctlr, action, context]
-                controller = (String) args[0];
-                action = (String) args[1];
-                context = args[2];
-            }
-        }
-
-        // (re)load 'jst.js'
-        load("/app/jst.js");
-
-        String name = controller + "." + action;
-        Context cx = Context.enter();
-        try {
-            NativeObject template = loadjst(name, cx, null);
-            NativeJavaObject njoRes = (NativeJavaObject) get("response", this);
-            HttpServletResponse res = (HttpServletResponse) njoRes.unwrap();
-            res.setContentType("text/html");
-            // call template.render(res.getWriter(), context)
-            Object[] args = {Context.javaToJS(res.getWriter(), template), context};
-            ScriptableObject.callMethod(cx, template, "render", args);
-        } finally {
-            Context.exit();
-            timer.mark("view");
-        }
-    }
-
-    private NativeObject loadjst(String name, Context cx,
-            Set<String> deps) throws IOException {
-
-        // lookup in cache[name] and in JST.templates[name]
-        String path = "/app/views/" + name.replace('.', '/') + ".jst";
-        CacheEntry cacheResult = cacheLookup(path);
-
-        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
-        ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
-        NativeObject template = (NativeObject) templates.get(name, templates);
-
-        if (cacheResult != null && template != ScriptableObject.NOT_FOUND) {
-            return template;  // found in cache
-        }
-
-        // not found or file changed, must compile and execute
-        log.info("loadjst: " + path);
-        String jstFile = readFile(path, null);
-        // if prototype or render/partial declared, then try to load deps
-        if (deps == null) {
-            deps = new HashSet<String>();
-        }
-        Pattern p = Pattern.compile("\\{[ \\t]*(prototype|render)[ \\t]+([^\\s{}]+)[ \\t]*\\}");
-        Matcher m = p.matcher(jstFile);
-        while (m.find()) {
-            String dep = m.group(2);
-            if (!deps.contains(dep)) {
-                deps.add(dep);
-                log.debug("loading jst " + name + " dependency " + dep);
-                loadjst(dep, cx, deps);
-            } else {
-                log.debug("ignoring circular dependency " + name + " > " + dep);
-            }
-        }
-
-        // call JST.parse(<jst file contents>)
-        Function parse = (Function) jstObj.get("parse", jstObj);
-        try {
-            log.info("JST.parse(" + name + ".jst)");
-            String source = (String) parse.call(cx, global, jstObj, new Object[] {name, jstFile});
-            File tempDir = (File) servletConfig.getServletContext().getAttribute("javax.servlet.context.tempdir");
-            String sourceName = "views/" + name + ".js";
-            if (tempDir != null) {
-                File jstDir = new File(tempDir, "jst");
-                jstDir.mkdir();
-                File compiledJstFile = new File(jstDir, name + ".js");
-                sourceName = compiledJstFile.toURI().toString();
-                log.info("Writing compiled jst file to tmp file: " + compiledJstFile);
-                FileOutputStream fos = new FileOutputStream(compiledJstFile);
-                try {
-                    fos.write(source.getBytes());
-                } finally {
-                    fos.close();
-                }
-            }
-            cx.evaluateString(global, source, sourceName, 1, null);
-            URLConnection urlc = getResource(path);
-
-            CacheEntry entry = new CacheEntry(urlc.getLastModified(),
-                    System.currentTimeMillis());
-            cache.put(path, entry);
-        } catch (JavaScriptException jse) {
-                IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
-                ioe.initCause(jse);
-                throw ioe;
-        }
-
-        // return 'JST.templates[name]'
-        return (NativeObject) templates.get(name, templates);
     }
 
     /**

@@ -18,7 +18,6 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeJavaObject;
-import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.tools.debugger.Main;
@@ -124,11 +123,11 @@ public class CirrusServlet extends HttpServlet {
             cirrus.load("/app/cirrus.js");
 
             Context cx = Context.enter();
-            // create env, set cirrus as proto
-            NativeObject env = new NativeObject();
-            ScriptRuntime.setObjectProtoAndParent(cirrus, SCOPE);
+            // var env = new cirrus.Env()
+            Function f = (Function) cirrus.get("Env", cirrus);
+            Scriptable env = f.construct(cx, SCOPE, ScriptRuntime.emptyArgs);
 
-            // set up DB, timer
+            // set up db, timer
             DB db = new DB(DATA_SOURCE);
             env.put("db", env, db);
             Timer timer = new Timer();

@@ -114,3 +114,38 @@ cirrus.service = function(env) {
         ctlr && ctlr.after && ctlr.after();
     }
 };
+
+/** Env is environment holding request, response, etc */
+cirrus.Env = function() {};
+
+/**
+ * Render specified JST template.  Optional parameters are
+ * ctlr, action and context.
+ * @param arguments is either [], [action], [context], [ctlr, action],
+ * [action, context], [ctlr, action, context]
+ * If not specified, ctlr uses 'this.controller', action uses 'this.action'
+ * and context uses 'this'.
+ */
+cirrus.Env.prototype.jst = function() {
+    this.timer.mark("action");
+
+    // (re)load 'jst.js'
+    cirrus.load("/app/jst.js");
+
+    // shift args right twice, or until typeof args[1] is string
+    // then we have [ctrl, action, context]
+    var args = Array.prototype.slice(arguments);
+    if (typeof args[1] !== "string") args.unshift();
+    if (typeof args[1] !== "string") args.unshift();
+    var controller = args[0] || this.controller;
+    var action = args[1] || this.action;
+    var context = args[2] || this.context;
+    
+    try {
+        var template = loadjst(controller + "." + action);
+        this.response.setContentType("text/html");
+        template.render(this.response.getWriter(), context);
+    } finally {
+        timer.mark("view");
+    }
+};
