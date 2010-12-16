@@ -30,7 +30,6 @@ import java.util.zip.ZipFile;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
-import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.logging.Log;
@@ -40,13 +39,11 @@ import org.mozilla.javascript.Function;
 import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.NativeObject;
-import org.mozilla.javascript.Script;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
 
-import com.joelhockey.cirrus.Cirrus.CacheEntry;
 import com.joelhockey.cirrus.RhinoJava.RhinoList;
 
 /**
@@ -73,6 +70,7 @@ public class Cirrus extends NativeObject {
      * @param servletConfig servlet config used to access files within web context
      */
     public Cirrus(Scriptable global, ServletConfig servletConfig) {
+        this.global = global;
         this.servletConfig = servletConfig;
 
         Context cx = Context.enter();
@@ -301,6 +299,12 @@ public class Cirrus extends NativeObject {
         return StringEscapeUtils.escapeHtml(s);
     }
 
+    /**
+     * Load specified jst file, and return compiled template
+     * @param name name of template &lt;controller.action>  e.g. 'user.list'
+     * @return compiled template
+     * @throws IOException if template not found or other error
+     */
     public NativeObject jst(String name) throws IOException {
         Context cx = Context.enter();
         try {
@@ -310,6 +314,7 @@ public class Cirrus extends NativeObject {
         }
     }
 
+    /** loads template and any of its dependency chain */
     private NativeObject loadjst(Context cx, String name,
             Set<String> deps) throws IOException {
 
@@ -317,7 +322,7 @@ public class Cirrus extends NativeObject {
         String path = "/app/views/" + name.replace('.', '/') + ".jst";
         CacheEntry cacheResult = cacheLookup(path);
 
-        ScriptableObject jstObj = (ScriptableObject) get("JST", this);
+        ScriptableObject jstObj = (ScriptableObject) get("JST", global);
         ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
         NativeObject template = (NativeObject) templates.get(name, templates);
 
@@ -379,7 +384,7 @@ public class Cirrus extends NativeObject {
     }
 
     /**
-     * Load javascript file into this scope.  File will only be executed if it doesn't
+     * Load javascript file into global scope.  File will only be executed if it doesn't
      * already exist, or if it has been modified since it was last loaded.
      * @param path file to load
      * @return true if file was (re)loaded, false if no change
@@ -441,8 +446,8 @@ public class Cirrus extends NativeObject {
         InputStream ins = getResource(path).getInputStream();
         try {
             byte[] buf = new byte[4096];
-            for (int l = 0; (l = ins.read(buf)) != -1; ) {
-                outs.write(buf, 0, l);
+            for (int len = 0; (len = ins.read(buf)) != -1; ) {
+                outs.write(buf, 0, len);
             }
         } finally {
             ins.close();

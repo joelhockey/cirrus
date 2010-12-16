@@ -3,18 +3,18 @@
 // public controller serves static content in /public/
 cirrus.controllers["public"] = {
     getLastModified: function () {
-        return fileLastModified("/public" + path);
+        return cirrus.fileLastModified("/public" + this.path);
     },
     GET: {
         $: function () {
             try {
                 // set Content-Type
-                var contentType = servletContext.getMimeType(path);
-                response.setContentType(contentType);
-                log("using Content-Type: " + contentType + ", for file: " + path);
-                readFile("/public" + path, response.getOutputStream());
+                var contentType = cirrus.servletContext.getMimeType(this.path);
+                this.response.setContentType(contentType);
+                cirrus.log("using Content-Type: " + contentType + ", for file: " + this.path);
+                cirrus.readFile("/public" + ths.path, response.getOutputStream());
             } catch (e) {
-                logwarn("error sending static file: " + path, e);
+                cirrus.logwarn("error sending static file: " + this.path, e);
                 throw 404;
             }
         }

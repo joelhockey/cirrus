@@ -8,7 +8,7 @@ import javax.servlet.ServletConfig;
 import org.mozilla.javascript.Context;
 
 public class ScopeThreadTest {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         int ITS = 10000;
         Context cx = Context.enter();
         ServletConfig sconf = new MockServletConfig();

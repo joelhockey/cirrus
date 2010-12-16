@@ -10,7 +10,7 @@ import org.apache.commons.logging.LogFactory;
  * @author Joel Hockey
  */
 public class Timer {
-    private static final Log log = LogFactory.getLog("cirrus.timer");
+    private static final Log log = LogFactory.getLog(Timer.class);
     private long[] times = new long[4];
     private String[] descs = new String[4];
     private int len = 0;

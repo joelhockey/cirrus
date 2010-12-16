@@ -63,27 +63,31 @@ public class CirrusServlet extends HttpServlet {
      */
     private synchronized void staticInit() throws ServletException {
         if (STATIC_INIT) return;
-        SCOPE = new CirrusScope(getServletConfig());
-
-        // check if running in debug mode
-        if (System.getProperty("debugjs") != null) {
-            DEBUG_JS = true;
-            // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
-            Main main = new Main("Cirrus Debug");
-            main.setScope(SCOPE);
-            main.attachTo(ContextFactory.getGlobal());
-            main.pack();
-            main.setSize(960, 720);
-            main.setVisible(true);
-        }
-
-        // get datasource using 'dbname' servlet init-param
+        int dbversion;
         try {
+            SCOPE = new CirrusScope(getServletConfig());
+
+            // check if running in debug mode
+            if (System.getProperty("debugjs") != null) {
+                DEBUG_JS = true;
+                // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
+                Main main = new Main("Cirrus Debug");
+                main.setScope(SCOPE);
+                main.attachTo(ContextFactory.getGlobal());
+                main.pack();
+                main.setSize(960, 720);
+                main.setVisible(true);
+            }
+
+            // get datasource using 'dbname' servlet init-param
             InitialContext ic = new InitialContext();
             String dbname = getServletConfig().getInitParameter("dbname");
-            log.info("Looking up datasource in jndi using 'dbname' servlet init-param: " + dbname);
+            String dbversionStr = getServletConfig().getInitParameter("dbversion");
+            log.info("servlet init-params dbname=" + dbname + ", dbversion="
+                    + dbversionStr + ", looking up jndi for datasource");
+            dbversion = Integer.parseInt(dbversionStr);
             DATA_SOURCE = (DataSource) ic.lookup(dbname);
-            // test
+            // test cnxn
             Connection dbconn = DATA_SOURCE.getConnection();
             dbconn.close();
         } catch (Exception e) {
@@ -94,11 +98,18 @@ public class CirrusServlet extends HttpServlet {
         DB db = null;
         Cirrus cirrus = SCOPE.getCirrus();
         Timer timer = new Timer();
+        Context cx = Context.enter();
         try {
+            // var env = new cirrus.Env()
+            Function f = (Function) cirrus.get("Env", cirrus);
+            Scriptable env = f.construct(cx, SCOPE, ScriptRuntime.emptyArgs);
             db = new DB(DATA_SOURCE);
-            cirrus.put("DB", cirrus, db);
-            cirrus.load("/db/migrate.js");
-            cirrus.delete("DB");
+            env.put("db", env, db);
+            env.put("timer", env, timer);
+
+            // cirrus.migrate(env, dbversion)
+            Function migrate = (Function) cirrus.get("migrate", cirrus);
+            migrate.call(cx, SCOPE, cirrus, new Object[] {env, dbversion});
         } catch (Exception e) {
             log.error("Error migrating db", e);
             throw new ServletException("Error migrating db", e);

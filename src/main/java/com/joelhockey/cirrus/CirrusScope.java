@@ -2,6 +2,8 @@
 
 package com.joelhockey.cirrus;
 
+import java.io.IOException;
+
 import javax.servlet.ServletConfig;
 
 import org.mozilla.javascript.Context;
@@ -20,8 +22,9 @@ public class CirrusScope extends ImporterTopLevel {
     /**
      * Create CirrusScope instance.
      * @param servletConfig servlet config used to access files within web context
+     * @throws IOException if error loading '/app/cirrus.js'
      */
-    public CirrusScope(ServletConfig servletConfig) {
+    public CirrusScope(ServletConfig servletConfig) throws IOException {
         Context cx = Context.enter();
         initStandardObjects(cx, false);
         cirrus = new Cirrus(this, servletConfig);
@@ -39,6 +42,9 @@ public class CirrusScope extends ImporterTopLevel {
         };
         defineFunctionProperties(names, Cirrus.class, ScriptableObject.DONTENUM);
         Context.exit();
+
+        // load '/app/cirrus.js' to complete population of global 'cirrus'
+        cirrus.load("/app/cirrus.js");
     }
 
     public Cirrus getCirrus() {

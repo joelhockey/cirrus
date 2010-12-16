@@ -56,15 +56,15 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public void setStatus(int status) { this.status = status; }
     public void setStatus(int status, String s) { this.status = status; }
     public void flushBuffer() throws IOException { throw new UnsupportedOperationException(); }
-    public int getBufferSize() { throw new UnsupportedOperationException(); }
-    public String getCharacterEncoding() { throw new UnsupportedOperationException(); }
+    public int getBufferSize() { return 0; }
+    public String getCharacterEncoding() { return "UTF-8"; }
     public String getContentType() {
         return contentType;
     }
-    public Locale getLocale() { throw new UnsupportedOperationException(); }
+    public Locale getLocale() { return Locale.ENGLISH; }
     public ServletOutputStream getOutputStream() throws IOException { return sos; }
     public PrintWriter getWriter() throws IOException { return pw; }
-    public boolean isCommitted() { throw new UnsupportedOperationException(); }
+    public boolean isCommitted() { return false; }
     public void reset() {
     	baos.reset();
     	headers.clear();
