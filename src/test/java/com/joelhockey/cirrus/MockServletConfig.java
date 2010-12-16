@@ -16,6 +16,10 @@ import javax.servlet.ServletContext;
 public class MockServletConfig implements ServletConfig {
     private ServletContext context = new MockServletContext(this);
     private Map<String, String> params = new HashMap<String, String>();
+    public MockServletConfig() {
+
+    }
+
     public Map<String, String> getInitParameters() { return params; }
 
     public String getInitParameter(String paramString) { return params.get(paramString); }

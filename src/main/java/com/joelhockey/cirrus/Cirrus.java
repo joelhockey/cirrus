@@ -520,15 +520,25 @@ public class Cirrus extends NativeObject {
             }
         }
 
-        // attempt printf and fall back to JSON
+        // check if like printf, else fall back to JSON
         if (args[0] instanceof String) {
-            // all JS numbers are doubles, so change '%d' to equivalent
-            String format = ((String)args[0]).replace("%d", "%.0f");
-            Object[] formatArgs = new Object[args.length - 1];
-            System.arraycopy(args, 1, formatArgs, 0, formatArgs.length);
-            try {
-                return String.format(format, formatArgs);
-            } catch (IllegalFormatException ife) {} // ignore
+            int numPercents = 0;
+            String format = (String) args[0];
+            for (int i = 0; i < format.length(); i++) {
+                if (format.charAt(i) == '%') {
+                    numPercents++;
+                    i++;
+                }
+            }
+            if (numPercents == args.length - 1) {
+                // all JS numbers are doubles, so change '%d' to equivalent
+                format = format.replace("%d", "%.0f");
+                Object[] formatArgs = new Object[args.length - 1];
+                System.arraycopy(args, 1, formatArgs, 0, formatArgs.length);
+                try {
+                    return String.format(format, formatArgs);
+                } catch (IllegalFormatException ife) {} // ignore
+            }
         }
 
         return RhinoJSON.stringify(args);

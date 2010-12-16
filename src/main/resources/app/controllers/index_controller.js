@@ -4,7 +4,6 @@
 cirrus.controllers.index = {
     GET: {
         $: function() {
-            cirrus.log(this)
             this.response.sendRedirect("/login");
         }
     }

@@ -79,11 +79,11 @@ public class MockServletContext implements ServletContext {
         }
         return result;
     }
-    public String getServerInfo() { throw new UnsupportedOperationException(); }
+    public String getServerInfo() { return "mock server v1.0"; }
     public Servlet getServlet(String arg0) throws ServletException { throw new UnsupportedOperationException(); }
-    public String getServletContextName() { throw new UnsupportedOperationException(); }
-    public Enumeration getServletNames() { throw new UnsupportedOperationException(); }
-    public Enumeration getServlets() { throw new UnsupportedOperationException(); }
+    public String getServletContextName() { return "cirrus"; }
+    public Enumeration getServletNames() { return new Vector().elements(); }
+    public Enumeration getServlets() { return new Vector().elements(); }
     public void log(String msg) { log.info(msg); }
     public void log(Exception error, String msg) { log.error(msg, error); }
     public void log(String msg, Throwable error) { log.error(msg, error); }

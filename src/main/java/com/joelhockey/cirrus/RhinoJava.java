@@ -45,6 +45,13 @@ public class RhinoJava extends WrapFactory {
             return rhino2javaScriptableObject((ScriptableObject) obj);
         } else if (obj instanceof NativeJavaObject) {
             return ((NativeJavaObject) obj).unwrap();
+        } else if (obj instanceof Object[]) {
+            List result = new ArrayList();
+            Object[] arr = (Object[])obj;
+            for (int i = 0; i < arr.length; i++) {
+                result.add(rhino2java(arr[i]));
+            }
+            return result;
         } else {
             return obj;
         }

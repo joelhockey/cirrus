@@ -142,6 +142,7 @@ public class CirrusServlet extends HttpServlet {
             DB db = new DB(DATA_SOURCE);
             env.put("db", env, db);
             Timer timer = new Timer();
+            timer.start();
             env.put("timer", env, timer);
 
             // servlet request, response

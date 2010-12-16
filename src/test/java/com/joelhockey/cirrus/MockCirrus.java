@@ -2,6 +2,7 @@
 
 package com.joelhockey.cirrus;
 
+import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Scriptable;
 
 /**
@@ -13,5 +14,9 @@ public class MockCirrus extends Cirrus {
 
     public MockCirrus(Scriptable global) {
         super(global, new MockServletConfig());
+        // set wrap factory on current context
+        Context cx = Context.enter();
+        cx.setWrapFactory(CirrusServlet.WRAP_FACTORY);
+        Context.exit();
     }
 }
