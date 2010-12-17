@@ -12,7 +12,7 @@ cirrus.controllers["public"] = {
                 var contentType = cirrus.servletContext.getMimeType(this.path);
                 this.response.setContentType(contentType);
                 cirrus.log("using Content-Type: " + contentType + ", for file: " + this.path);
-                cirrus.readFile("/public" + ths.path, response.getOutputStream());
+                cirrus.readFile("/public" + this.path, this.response.getOutputStream());
             } catch (e) {
                 cirrus.logwarn("error sending static file: " + this.path, e);
                 throw 404;

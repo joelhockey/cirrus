@@ -32,25 +32,8 @@ public class CirrusServlet extends HttpServlet {
     private static final Log log = LogFactory.getLog(CirrusServlet.class);
 
     private static boolean STATIC_INIT = false;
-    private static boolean DEBUG_JS = false;
     private static DataSource DATA_SOURCE;
-    static final RhinoJava WRAP_FACTORY = new RhinoJava();
     static CirrusScope SCOPE;
-
-    /** Context Factory to set wrap factory and opt level. */
-    static class CirrusContextFactory extends ContextFactory {
-        @Override
-        protected Context makeContext() {
-            Context cx = super.makeContext();
-            cx.setWrapFactory(WRAP_FACTORY);
-            cx.setOptimizationLevel(DEBUG_JS ? -1 : 9);
-            return cx;
-        }
-    }
-
-    static {
-        ContextFactory.initGlobal(new CirrusContextFactory());
-    }
 
     @Override
     public void init() throws ServletException {
@@ -69,7 +52,6 @@ public class CirrusServlet extends HttpServlet {
 
             // check if running in debug mode
             if (System.getProperty("debugjs") != null) {
-                DEBUG_JS = true;
                 // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
                 Main main = new Main("Cirrus Debug");
                 main.setScope(SCOPE);

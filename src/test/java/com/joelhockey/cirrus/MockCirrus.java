@@ -14,9 +14,10 @@ public class MockCirrus extends Cirrus {
 
     public MockCirrus(Scriptable global) {
         super(global, new MockServletConfig());
-        // set wrap factory on current context
+
+        // set wrap factory
         Context cx = Context.enter();
-        cx.setWrapFactory(CirrusServlet.WRAP_FACTORY);
+        cx.setWrapFactory(Cirrus.WRAP_FACTORY);
         Context.exit();
     }
 }

@@ -35,6 +35,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.NativeJavaObject;
@@ -54,9 +55,26 @@ public class Cirrus extends NativeObject {
     private static final long serialVersionUID = 0xDC7C4EC5275394BL;
     private static final Log log = LogFactory.getLog(Cirrus.class);
     private static enum LogLevel { INFO, WARN, ERROR };
+    public static final RhinoJava WRAP_FACTORY = new RhinoJava();
 
     /** Time to wait before reloading changed js file. */
     public static final long RELOAD_WAIT = 10000;
+
+    /** Context Factory to set wrap factory and opt level. */
+    static class CirrusContextFactory extends ContextFactory {
+        @Override
+        protected Context makeContext() {
+            Context cx = super.makeContext();
+            cx.setWrapFactory(WRAP_FACTORY);
+            cx.setOptimizationLevel(
+                    System.getProperty("debugjs") != null ? -1 : 9);
+            return cx;
+        }
+    }
+
+    static {
+        ContextFactory.initGlobal(new CirrusContextFactory());
+    }
 
     // maps hold all scripts
     private Map<String, CacheEntry> cache = new HashMap<String, CacheEntry>();
@@ -92,6 +110,7 @@ public class Cirrus extends NativeObject {
             "logerror",
             "print",
             "readFile",
+            "sysout",
         };
         defineFunctionProperties(names, Cirrus.class, ScriptableObject.DONTENUM);
         put("servletConfig", this, servletConfig);
@@ -322,12 +341,12 @@ public class Cirrus extends NativeObject {
         String path = "/app/views/" + name.replace('.', '/') + ".jst";
         CacheEntry cacheResult = cacheLookup(path);
 
-        ScriptableObject jstObj = (ScriptableObject) get("JST", global);
+        ScriptableObject jstObj = (ScriptableObject) global.get("JST", global);
         ScriptableObject templates = (ScriptableObject) jstObj.get("templates", jstObj);
-        NativeObject template = (NativeObject) templates.get(name, templates);
+        Object template = templates.get(name, templates);
 
         if (cacheResult != null && template != ScriptableObject.NOT_FOUND) {
-            return template;  // found in cache
+            return (NativeObject) template;  // found in cache
         }
 
         // not found or file changed, must compile and execute
@@ -384,8 +403,8 @@ public class Cirrus extends NativeObject {
     }
 
     /**
-     * Load javascript file into global scope.  File will only be executed if it doesn't
-     * already exist, or if it has been modified since it was last loaded.
+     * Load javascript file into global scope.  File will only be executed
+     * if it doesn't already exist, or if modified since it was last loaded.
      * @param path file to load
      * @return true if file was (re)loaded, false if no change
      * @throws IOException if error reading file
@@ -400,7 +419,7 @@ public class Cirrus extends NativeObject {
         Context cx = Context.enter();
         try {
             // ensure we are using our WrapFactory
-            cx.setWrapFactory(CirrusServlet.WRAP_FACTORY);
+            cx.setWrapFactory(WRAP_FACTORY);
             URLConnection urlc = getResource(path);
             Reader reader = new BufferedReader(new InputStreamReader(
                     urlc.getInputStream()));
@@ -508,6 +527,11 @@ public class Cirrus extends NativeObject {
         }
     }
 
+    /** Print objects to sysout */
+    public static void sysout(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
+        System.out.println(dump(args));
+    }
+
     // return printf or JSON formatted
     private static String dump(Object[] args) {
         if (args == null || args.length == 0) {
@@ -526,13 +550,14 @@ public class Cirrus extends NativeObject {
             String format = (String) args[0];
             for (int i = 0; i < format.length(); i++) {
                 if (format.charAt(i) == '%') {
-                    numPercents++;
                     i++;
+                    if (format.length() <= i || format.charAt(i) != '%' ) {
+                        numPercents++;
+                    }
                 }
             }
+
             if (numPercents == args.length - 1) {
-                // all JS numbers are doubles, so change '%d' to equivalent
-                format = format.replace("%d", "%.0f");
                 Object[] formatArgs = new Object[args.length - 1];
                 System.arraycopy(args, 1, formatArgs, 0, formatArgs.length);
                 try {
@@ -546,7 +571,8 @@ public class Cirrus extends NativeObject {
 
     /**
      * Return cache entry if valid, or null if item not in cache or stale.
-     * @param path cache lookup key used with {@link ServletContext#getResource(String)}
+     * @param path cache lookup key used with
+     * {@link ServletContext#getResource(String)}
      * @return cache entry or null if item not in cache or stale
      * @throws IOException if resource not found
      */

@@ -1,14 +1,11 @@
-load("/setup.js");
 
 CirrusTest = {
     setUp: function() {
+        load("/setup.js");
         this.servlet = new com.joelhockey.cirrus.CirrusServlet();
         var sconf = new com.joelhockey.cirrus.MockServletConfig();
-        var initParams = sconf.getInitParameters();
-debugger
-        initParams.put("dbname", "jdbc/cirrus");
-        initParams.put("dbversion", "1");
-cirrus.log("put ok")
+        sconf.initParameters.dbname = "jdbc/cirrus";
+        sconf.initParameters.dbversion = "1";
         this.servlet.init(sconf);
     },
 

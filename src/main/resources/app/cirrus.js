@@ -73,7 +73,7 @@ cirrus.service = function(env) {
         if (env.method === "GET" && ctlr.getLastModified) {
             var pageLastMod = ctlr.getLastModified.call(env)
             if (pageLastMod >= 0) {
-                if (pageLastMod - this.request.getDateHeader("If-Modified-Since") < 1000) {
+                if (pageLastMod - env.request.getDateHeader("If-Modified-Since") < 1000) {
                     env.response.setStatus(304); // Not Modified
                     return; // early exit
                 } else {
@@ -201,6 +201,7 @@ cirrus.Env = function() {};
  * and context uses 'this'.
  */
 cirrus.Env.prototype.jst = function() {
+    debugger
     this.timer.mark("action");
 
     // (re)load 'jst.js'
@@ -208,12 +209,12 @@ cirrus.Env.prototype.jst = function() {
 
     // shift args right twice, or until typeof args[1] is string
     // then we have [ctrl, action, context]
-    var args = Array.prototype.slice(arguments);
-    if (typeof args[1] !== "string") args.unshift();
-    if (typeof args[1] !== "string") args.unshift();
+    var args = Array.prototype.slice.call(arguments);
+    if (typeof args[1] !== "string") args.unshift(null);
+    if (typeof args[1] !== "string") args.unshift(null);
     var controller = args[0] || this.controller;
     var action = args[1] || this.action;
-    var context = args[2] || this.context;
+    var context = args[2] || this;
     
     try {
         var template = cirrus.jst(controller + "." + action);
