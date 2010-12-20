@@ -1,8 +1,16 @@
 cirrus.controllers.test = {
     GET: {
-        hello: function() {
-            this.a = [x * 2 for each (x in [0,1,2])];
-            this.jst();
+        action1: function() {
+            this.body = "GET /test/action1";
+        },
+        action2: function() {
+            this.body = "GET /test/action2";
+        }
+    },
+    POST: {
+        action1: function() {
+            this.body = "POST /test/action1";
         }
     }
+    
 };

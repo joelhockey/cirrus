@@ -4,6 +4,8 @@
 var cirrus = cirrus || new com.joelhockey.cirrus.Cirrus(
         this, new com.joelhockey.cirrus.MockServletConfig());
 
+load("/app/cirrus.js");
+
 // set wrap factory for current context
 org.mozilla.javascript.Context.enter().setWrapFactory(
         com.joelhockey.cirrus.Cirrus.WRAP_FACTORY);
@@ -21,3 +23,14 @@ org.mozilla.javascript.Context.exit();
         ic.bind("jdbc/cirrus", ds);
     }
 })();
+
+var setup = setup || {
+    servlet: function() {
+        var servlet = new com.joelhockey.cirrus.CirrusServlet();
+        var sconf = new com.joelhockey.cirrus.MockServletConfig();
+        sconf.initParameters.dbname = "jdbc/cirrus";
+        sconf.initParameters.dbversion = "1";
+        servlet.init(sconf);
+        return servlet;
+    }
+}

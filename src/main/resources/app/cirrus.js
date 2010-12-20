@@ -72,6 +72,7 @@ cirrus.forward = function(env, method, path) {
     
         // find method handler or 405
         var methodHandler = ctlr[method] || ctlr.$;
+        cirrus.log("ctlr", ctlr)
         if (!methodHandler) {
             // return 405 Method Not Allowed
             this.logwarn("warning, no handler in ctlr for method="
@@ -82,7 +83,9 @@ cirrus.forward = function(env, method, path) {
         var actionHandler = methodHandler[env.action] || methodHandler.$;
         var args = pathdirs.slice(3);
         if (!(actionHandler instanceof Function) || actionHandler.arity !== args.length) {
-            this.logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
+            this.logwarn("warning, no action handler for method=" + method
+                    + ", action=" + env.action + ", path=" + path
+                    + " got arity: " + (actionHandler && actionHandler.arity));
             throw 404;
         }
         actionHandler.apply(env, args);
