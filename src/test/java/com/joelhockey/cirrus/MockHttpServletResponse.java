@@ -38,14 +38,14 @@ public class MockHttpServletResponse implements HttpServletResponse {
     public void addHeader(String header, String value) { headers.put(header, value); }
     public void addIntHeader(String header, int value) { headers.put(header, "" + value); }
     public boolean containsHeader(String header) { return headers.containsKey(header); }
-    public String encodeRedirectURL(String arg0) { throw new UnsupportedOperationException(); }
-    public String encodeRedirectUrl(String arg0) { throw new UnsupportedOperationException(); }
-    public String encodeURL(String arg0) { throw new UnsupportedOperationException(); }
-    public String encodeUrl(String arg0) { throw new UnsupportedOperationException(); }
-    public void sendError(int arg0) throws IOException { throw new UnsupportedOperationException(); }
-    public void sendError(int arg0, String arg1) throws IOException { throw new UnsupportedOperationException(); }
-    public void sendRedirect(String redirect) throws IOException {
-        this.redirect = redirect;
+    public String encodeRedirectURL(String path) { throw new UnsupportedOperationException(); }
+    public String encodeRedirectUrl(String path) { throw new UnsupportedOperationException(); }
+    public String encodeURL(String path) { throw new UnsupportedOperationException(); }
+    public String encodeUrl(String path) { throw new UnsupportedOperationException(); }
+    public void sendError(int sc) throws IOException { throw new UnsupportedOperationException(); }
+    public void sendError(int sc, String msg) throws IOException { throw new UnsupportedOperationException(); }
+    public void sendRedirect(String location) throws IOException {
+        this.redirect = location;
         status = 302;
     }
     public void setDateHeader(String header, long value) {
@@ -71,11 +71,11 @@ public class MockHttpServletResponse implements HttpServletResponse {
     	status = 200;
     }
     public void resetBuffer() { throw new UnsupportedOperationException(); }
-    public void setBufferSize(int arg0) { throw new UnsupportedOperationException(); }
-    public void setCharacterEncoding(String arg0) { throw new UnsupportedOperationException(); }
-    public void setContentLength(int arg0) { throw new UnsupportedOperationException(); }
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
+    public void setBufferSize(int size) { throw new UnsupportedOperationException(); }
+    public void setCharacterEncoding(String charset) { throw new UnsupportedOperationException(); }
+    public void setContentLength(int len) { throw new UnsupportedOperationException(); }
+    public void setContentType(String type) {
+        contentType = type;
     }
-    public void setLocale(Locale arg0) { throw new UnsupportedOperationException(); }
+    public void setLocale(Locale loc) { throw new UnsupportedOperationException(); }
 }

@@ -35,7 +35,6 @@ import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.NativeJavaObject;
@@ -55,28 +54,17 @@ public class Cirrus extends NativeObject {
     private static final long serialVersionUID = 0xDC7C4EC5275394BL;
     private static final Log log = LogFactory.getLog(Cirrus.class);
     private static enum LogLevel { INFO, WARN, ERROR };
+
+    /**
+     * WrapFactory used for any scripts loaded via {@link #load(String)}.
+     * {@link RhinoJava} converts java.util collections to JS objects
+     */
     public static final RhinoJava WRAP_FACTORY = new RhinoJava();
 
     /** Time to wait before reloading changed js file. */
     public static final long RELOAD_WAIT = 10000;
 
-    /** Context Factory to set wrap factory and opt level. */
-    static class CirrusContextFactory extends ContextFactory {
-        @Override
-        protected Context makeContext() {
-            Context cx = super.makeContext();
-            cx.setWrapFactory(WRAP_FACTORY);
-            cx.setOptimizationLevel(
-                    System.getProperty("debugjs") != null ? -1 : 9);
-            return cx;
-        }
-    }
-
-    static {
-        ContextFactory.initGlobal(new CirrusContextFactory());
-    }
-
-    // maps hold all scripts
+    // cache used to only reload scripts when timestamp on file changed
     private Map<String, CacheEntry> cache = new HashMap<String, CacheEntry>();
     private Scriptable global;
     private ServletConfig servletConfig;
@@ -325,17 +313,13 @@ public class Cirrus extends NativeObject {
      * @throws IOException if template not found or other error
      */
     public NativeObject jst(String name) throws IOException {
-        Context cx = Context.enter();
-        try {
-            return loadjst(cx, name, new HashSet<String>());
-        } finally {
-            Context.exit();
-        }
+        // (re)load '/app/jst.js'
+        load("/app/jst.js");
+        return loadjst(name, new HashSet<String>());
     }
 
     /** loads template and any of its dependency chain */
-    private NativeObject loadjst(Context cx, String name,
-            Set<String> deps) throws IOException {
+    private NativeObject loadjst(String name, Set<String> deps)throws IOException {
 
         // lookup in cache[name] and in JST.templates[name]
         String path = "/app/views/" + name.replace('.', '/') + ".jst";
@@ -360,7 +344,7 @@ public class Cirrus extends NativeObject {
             if (!deps.contains(dep)) {
                 deps.add(dep);
                 log.debug("loading jst " + name + " dependency " + dep);
-                loadjst(cx, dep, deps);
+                loadjst(dep, deps);
             } else {
                 log.debug("ignoring circular dependency " + name + " > " + dep);
             }
@@ -368,6 +352,7 @@ public class Cirrus extends NativeObject {
 
         // call JST.parse(<jst file contents>)
         Function parse = (Function) jstObj.get("parse", jstObj);
+        Context cx = Context.enter();
         try {
             log.info("JST.parse(" + name + ".jst)");
             String source = (String) parse.call(cx, global, jstObj, new Object[] {name, jstFile});
@@ -396,6 +381,8 @@ public class Cirrus extends NativeObject {
                 IOException ioe = new IOException("Error loading views/" + name + ".js: " + jse.getMessage());
                 ioe.initCause(jse);
                 throw ioe;
+        } finally {
+            Context.exit();
         }
 
         // return 'JST.templates[name]'
@@ -410,6 +397,7 @@ public class Cirrus extends NativeObject {
      * @throws IOException if error reading file
      */
     public boolean load(String path) throws IOException {
+        // if script in cache, no need to evaluate again
         CacheEntry entry = cacheLookup(path);
         if (entry != null) {
             return false;
@@ -417,9 +405,10 @@ public class Cirrus extends NativeObject {
 
         // evaluate script
         Context cx = Context.enter();
+        // ensure we are using our WrapFactory
+        cx.setWrapFactory(Cirrus.WRAP_FACTORY);
+
         try {
-            // ensure we are using our WrapFactory
-            cx.setWrapFactory(WRAP_FACTORY);
             URLConnection urlc = getResource(path);
             Reader reader = new BufferedReader(new InputStreamReader(
                     urlc.getInputStream()));
@@ -546,6 +535,8 @@ public class Cirrus extends NativeObject {
 
         // check if like printf, else fall back to JSON
         if (args[0] instanceof String) {
+
+            // count number of percents (special handling for '%%')
             int numPercents = 0;
             String format = (String) args[0];
             for (int i = 0; i < format.length(); i++) {
@@ -557,6 +548,7 @@ public class Cirrus extends NativeObject {
                 }
             }
 
+            // if num percents matches args length, then try String.format
             if (numPercents == args.length - 1) {
                 Object[] formatArgs = new Object[args.length - 1];
                 System.arraycopy(args, 1, formatArgs, 0, formatArgs.length);
@@ -566,6 +558,7 @@ public class Cirrus extends NativeObject {
             }
         }
 
+        // default is JSON.stringify if not printf or printf fails
         return RhinoJSON.stringify(args);
     }
 
