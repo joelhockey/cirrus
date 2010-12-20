@@ -2,9 +2,6 @@
 
 // default index controller redirects to '/login'
 cirrus.controllers.index = {
-    before: function() {
-        this.request.getSession().invalidate();
-    },
     GET: {
         $: function() {
             this.response.sendRedirect("/login");
