@@ -5,6 +5,7 @@ package com.joelhockey.cirrus;
 import java.io.IOException;
 
 import javax.servlet.ServletConfig;
+import javax.sql.DataSource;
 
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ImporterTopLevel;
@@ -22,12 +23,14 @@ public class CirrusScope extends ImporterTopLevel {
     /**
      * Create CirrusScope instance.
      * @param servletConfig servlet config used to access files within web context
+     * @param dataSource data source
      * @throws IOException if error loading '/app/cirrus.js'
      */
-    public CirrusScope(ServletConfig servletConfig) throws IOException {
+    public CirrusScope(ServletConfig servletConfig,
+            DataSource dataSource) throws IOException {
         Context cx = Context.enter();
         initStandardObjects(cx, false);
-        cirrus = new Cirrus(this, servletConfig);
+        cirrus = new Cirrus(this, servletConfig, dataSource);
         put("cirrus", this, cirrus);
         put("JSON", this, new RhinoJSON());
 

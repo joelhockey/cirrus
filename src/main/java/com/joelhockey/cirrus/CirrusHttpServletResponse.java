@@ -19,33 +19,37 @@ public class CirrusHttpServletResponse extends HttpServletResponseWrapper {
     }
 
     private int status = 200;
+    private boolean statusSet = false;
 
     @Override
     public void sendError(int sc) throws IOException {
         status = sc;
+        statusSet = true;
         super.sendError(sc);
     }
 
     @Override
     public void sendError(int sc, String msg) throws IOException {
         status = sc;
+        statusSet = true;
         super.sendError(sc, msg);
     }
 
     @Override
     public void setStatus(int sc) {
         status = sc;
+        statusSet = true;
         super.setStatus(sc);
     }
 
     @Override
     public void sendRedirect(String location) throws IOException {
         status = 302;
+        statusSet = true;
         super.sendRedirect(location);
     }
 
-    public int getStatus() {
-        return status;
-    }
+    public int getStatus() { return status; }
+    public boolean isStatusSet() { return statusSet; }
 }
 

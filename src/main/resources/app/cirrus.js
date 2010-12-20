@@ -5,20 +5,63 @@
  * cirrus props:
  * - servletConfig javax.servlet.ServletConfig
  * - servletContext javax.servlet.ServletContext
- * - timer com.joelhockey.cirrus.Timer
  * - controllers Object
  * env props:
  * - db com.joelhockey.cirrus.DB
  * - request javax.servlet.http.HttpServletRequest
  * - response javax.servlet.http.HttpServletResponse
+ * - timer com.joelhockey.cirrus.Timer
+ * Create env props:
  * - flash
  * - method
  * - path
  * - params
- * Create env props:
- * - controller
- * - action
+ * - headers
+ * - body
+ * @param env environment
+ */
+cirrus.service = function(env) {
+    env.flash = {};
+    env.method = env.request.getMethod();
+    env.path = env.request.getRequestURI();
+    env.params = {};
+    for (var en = env.request.getParameterNames(); en.hasMoreElements();) {
+        var paramName = en.nextElement();
+        params[paramName] = request.getParameter(paramName));
+    }
+    env.body = [];
+    env.headers = {};
+    var result = cirrus.forward(env);
+    
+    // result is either String, or {status: Number, headers: Object, body: Array}
+    // merge result into env
+    var status;
+    if (typeof result === "string") {
+        env.body.push(result);
+    } else {
+        status = result.status || env.status;
+        for (var headerName in result.headers) {
+            env.headers[headerName] = result[headerName];
+        }
+        Array.prototype.push.apply(env.body, result.body); 
+    }
+    
+    // put env.status, env.headers, env.body into servlet
+    if (!response.isStatusSet() && status) {
+        response.setStatus(status);
+    }
+    for (var headerName in env.headers) {
+        response.addHeader(headerName, env.headers[headerName]);
+    }
+    var writer = response.getWriter();
+    for each (var bodyPart in env.body) {
+        writer.write(bodyPart);
+    }
+}
+
+/** 
  * Method and path are optional to override env.method and env.path
+ * Adds controller and action props to env.
  * @param env environment
  * @param method optional method - e.g. GET, POST
  * @param path optional path - e.g. /user/list
@@ -77,7 +120,8 @@ cirrus.forward = function(env, method, path) {
             // return 405 Method Not Allowed
             this.logwarn("warning, no handler in ctlr for method="
                     + method + ", path=" + path);
-            env.response.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
+            var allowed = [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])];
+            env.response.addHeader("Allow", allowed.join(", "));
             throw 405;
         }
         var actionHandler = methodHandler[env.action] || methodHandler.$;
@@ -88,7 +132,7 @@ cirrus.forward = function(env, method, path) {
                     + " got arity: " + (actionHandler && actionHandler.arity));
             throw 404;
         }
-        actionHandler.apply(env, args);
+        return actionHandler.apply(env, args);
 
     // error - set status and use error templates
     } catch (e) {

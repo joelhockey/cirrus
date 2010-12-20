@@ -4,6 +4,7 @@ package com.joelhockey.cirrus;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.util.ArrayList;
 import java.util.Enumeration;
 
 import javax.naming.InitialContext;
@@ -18,9 +19,11 @@ import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
+import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
@@ -49,19 +52,6 @@ public class CirrusServlet extends HttpServlet {
         if (STATIC_INIT) return;
         int dbversion;
         try {
-            GLOBAL_SCOPE = new CirrusScope(getServletConfig());
-
-            // check if running in debug mode
-            if (System.getProperty("debugjs") != null) {
-                // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
-                Main main = new Main("Cirrus Debug");
-                main.setScope(GLOBAL_SCOPE);
-                main.attachTo(ContextFactory.getGlobal());
-                main.pack();
-                main.setSize(960, 720);
-                main.setVisible(true);
-            }
-
             // get datasource using 'dbname' servlet init-param
             InitialContext ic = new InitialContext();
             String dbname = getServletConfig().getInitParameter("dbname");
@@ -73,6 +63,19 @@ public class CirrusServlet extends HttpServlet {
             // test cnxn
             Connection dbconn = DATA_SOURCE.getConnection();
             dbconn.close();
+
+            GLOBAL_SCOPE = new CirrusScope(getServletConfig(), DATA_SOURCE);
+
+            // check if running in debug mode
+            if (System.getProperty("debugjs") != null) {
+                // try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
+                Main main = new Main("Cirrus Debug");
+                main.setScope(GLOBAL_SCOPE);
+                main.attachTo(ContextFactory.getGlobal());
+                main.pack();
+                main.setSize(960, 720);
+                main.setVisible(true);
+            }
         } catch (Exception e) {
             log.error("Error getting dbconn", e);
             throw new ServletException("Error getting dbconn", e);
@@ -123,19 +126,10 @@ public class CirrusServlet extends HttpServlet {
             Cirrus cirrus = GLOBAL_SCOPE.getCirrus();
             cirrus.load("/app/cirrus.js");
 
-            // create 'env' object and set flash, method, path, params
+            // create 'env' object and set flash, method, path, params, body
             // var env = new cirrus.Env()
             Function f = (Function) cirrus.get("Env", cirrus);
             Scriptable env = f.construct(cx, GLOBAL_SCOPE, ScriptRuntime.emptyArgs);
-            env.put("flash", env, cx.newObject(GLOBAL_SCOPE));
-            env.put("method", env, req.getMethod());
-            env.put("path", env, req.getRequestURI());
-            Scriptable params = cx.newObject(GLOBAL_SCOPE);
-            for (Enumeration en = req.getParameterNames(); en.hasMoreElements();) {
-                String paramName = (String) en.nextElement();
-                params.put(paramName, params, req.getParameter(paramName));
-            }
-            env.put("params", env, params);
 
             // set up db, timer
             DB db = new DB(DATA_SOURCE);
@@ -150,7 +144,7 @@ public class CirrusServlet extends HttpServlet {
 
             try {
                 // 'cirrus.forward(env)'
-                Function service = (Function) cirrus.get("forward", cirrus);
+                Function service = (Function) cirrus.get("service", cirrus);
                 service.call(cx, cirrus, cirrus, new Object[] {env});
             } finally {
                 Context.exit();

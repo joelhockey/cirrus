@@ -30,6 +30,7 @@ import java.util.zip.ZipFile;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
+import javax.sql.DataSource;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.logging.Log;
@@ -74,10 +75,13 @@ public class Cirrus extends NativeObject {
      * Create Cirrus instance.
      * @param global global scope
      * @param servletConfig servlet config used to access files within web context
+     * @param dataSource data source
      */
-    public Cirrus(Scriptable global, ServletConfig servletConfig) {
+    public Cirrus(Scriptable global,
+            ServletConfig servletConfig, DataSource dataSource) {
         this.global = global;
         this.servletConfig = servletConfig;
+        this.dataSource = dataSource;
 
         Context cx = Context.enter();
         ScriptRuntime.setObjectProtoAndParent(this, global);
@@ -103,6 +107,7 @@ public class Cirrus extends NativeObject {
         defineFunctionProperties(names, Cirrus.class, ScriptableObject.DONTENUM);
         put("servletConfig", this, servletConfig);
         put("servletContext", this, servletConfig.getServletContext());
+        put("dataSource", this, dataSource);
         Context.exit();
     }
 
