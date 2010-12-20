@@ -12,7 +12,7 @@ cirrus.controllers.user = {
                 this.jst({user: user});
             } else {
                 this.flash.error = "No user found";
-                cirrus.controllers.user.GET.$.call(this); // forward to list
+                cirrus.formward(this, "GET", "/user/list");
             }
         },
         $ : function () {

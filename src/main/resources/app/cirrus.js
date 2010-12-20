@@ -1,18 +1,7 @@
 // Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
 
-// publicPaths contains all dirs and files in public root
-// if first path part matches one of these, then we use public ctlr
-(function () {
-    cirrus.publicPaths = {};
-    for (var path in cirrus.getResourcePaths("/public/")) {
-        var part = path.split("/")[2];
-        cirrus.log("public path: " + part)
-        cirrus.publicPaths[part] = part;
-    }
-})();
-
 /**
- * Dispatch request.
+ * Main cirrus entry point to service HTTP requests.
  * cirrus props:
  * - servletConfig javax.servlet.ServletConfig
  * - servletContext javax.servlet.ServletContext
@@ -22,32 +11,29 @@
  * - db com.joelhockey.cirrus.DB
  * - request javax.servlet.http.HttpServletRequest
  * - response javax.servlet.http.HttpServletResponse
- * Create env props:
  * - flash
  * - method
  * - path
  * - params
+ * Create env props:
  * - controller
  * - action
+ * Method and path are optional to override env.method and env.path
+ * @param env environment
+ * @param method optional method - e.g. GET, POST
+ * @param path optional path - e.g. /user/list
  */
-cirrus.service = function(env) {
-    env.flash = {};
-    env.method = String(env.request.getMethod());
-    env.params = {};
-    for (var en = env.request.getParameterNames(); en.hasMoreElements();) {
-        var key = en.nextElement();
-        env.params[String(key)] = String(env.request.getParameter(key));
-    }
-
-    env.path = String(env.request.getRequestURI());
+cirrus.forward = function(env, method, path) {
+    method = method || env.method;
+    path = path || env.path;
     
-    var pathdirs = env.path.split("/");
+    var pathdirs = path.split("/");
     // use 'index' as default controller and action
     env.controller = pathdirs[1] || "index";
     env.action = pathdirs[2] || "index";
     
     // use public controller if path is in public dir
-    if (cirrus.publicPaths[env.controller]) {
+    if (this.publicPaths[env.controller]) {
         env.controller = "public";
     }
 
@@ -60,7 +46,7 @@ cirrus.service = function(env) {
                 throw null;
             }
         } catch (e) {
-            this.logwarn("warning, no controller defined for path: " + env.path);
+            this.logwarn("warning, no controller defined for path: " + path);
             throw 404;
         }
 
@@ -70,7 +56,7 @@ cirrus.service = function(env) {
         }
 
         // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
-        if (env.method === "GET" && ctlr.getLastModified) {
+        if (method === "GET" && ctlr.getLastModified) {
             var pageLastMod = ctlr.getLastModified.call(env)
             if (pageLastMod >= 0) {
                 if (pageLastMod - env.request.getDateHeader("If-Modified-Since") < 1000) {
@@ -85,17 +71,18 @@ cirrus.service = function(env) {
         }
     
         // find method handler or 405
-        var methodHandler = ctlr[env.method] || ctlr.$;
+        var methodHandler = ctlr[method] || ctlr.$;
         if (!methodHandler) {
             // return 405 Method Not Allowed
-            this.logwarn("warning, no method handler for path: " + env.path);
+            this.logwarn("warning, no handler in ctlr for method="
+                    + method + ", path=" + path);
             env.response.addHeader("Allow", [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])].join(", "));
             throw 405;
         }
         var actionHandler = methodHandler[env.action] || methodHandler.$;
         var args = pathdirs.slice(3);
         if (!(actionHandler instanceof Function) || actionHandler.arity !== args.length) {
-            this.logwarn("warning, no action handler for path: " + env.path + " got arity: " + actionHandler.arity);
+            this.logwarn("warning, no action handler for path: " + path + " got arity: " + actionHandler.arity);
             throw 404;
         }
         actionHandler.apply(env, args);
@@ -117,8 +104,20 @@ cirrus.service = function(env) {
     }
 };
 
+// cirrus.publicPaths contains all dirs and files in public root
+// if first path part or a req matches one of these, then we use public ctlr
+(function () {
+    cirrus.publicPaths = {};
+    for (var path in cirrus.getResourcePaths("/public/")) {
+        var part = path.split("/")[2];
+        cirrus.log("public path: " + part)
+        cirrus.publicPaths[part] = part;
+    }
+})();
+
+
 /**
- * Migrate database
+ * Migrate database to specified version
  * @param env environment containing db, timer.
  */
 cirrus.migrate = function(env, version) {
@@ -201,11 +200,7 @@ cirrus.Env = function() {};
  * and context uses 'this'.
  */
 cirrus.Env.prototype.jst = function() {
-    debugger
     this.timer.mark("action");
-
-    // (re)load 'jst.js'
-    cirrus.load("/app/jst.js");
 
     // shift args right twice, or until typeof args[1] is string
     // then we have [ctrl, action, context]

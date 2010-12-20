@@ -30,6 +30,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
     public String method;
     public Map<String, String> headers = new HashMap<String, String>();
     public String requestURI;
+    public MockHttpSession session = new MockHttpSession();
 
     private SimpleDateFormat dateHeaderFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'");
     {
@@ -51,9 +52,9 @@ public class MockHttpServletRequest implements HttpServletRequest {
 			return -1;
 		}
     }
-    public String getHeader(String arg0) { throw new UnsupportedOperationException(); }
+    public String getHeader(String name) { throw new UnsupportedOperationException(); }
     public Enumeration getHeaderNames() { return new Vector().elements(); }
-    public Enumeration getHeaders(String arg0) { throw new UnsupportedOperationException(); }
+    public Enumeration getHeaders(String name) { throw new UnsupportedOperationException(); }
     public int getIntHeader(String arg0) { throw new UnsupportedOperationException(); }
     public String getMethod() { return method; }
     public String getPathInfo() { return null; }
@@ -64,8 +65,8 @@ public class MockHttpServletRequest implements HttpServletRequest {
     public StringBuffer getRequestURL() { return new StringBuffer("http://localhost" + getRequestURI()); }
     public String getRequestedSessionId() { return null; }
     public String getServletPath() { return "/*"; }
-    public HttpSession getSession() { return null; }
-    public HttpSession getSession(boolean arg0) { throw new UnsupportedOperationException(); }
+    public HttpSession getSession() { return session; }
+    public HttpSession getSession(boolean create) { throw new UnsupportedOperationException(); }
     public Principal getUserPrincipal() { return null; }
     public boolean isRequestedSessionIdFromCookie() { return true; }
     public boolean isRequestedSessionIdFromURL() { return false; }
@@ -98,7 +99,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
     public String getServerName() { return "localhost"; }
     public int getServerPort() { return 80; }
     public boolean isSecure() { return false; }
-    public void removeAttribute(String arg0) { throw new UnsupportedOperationException(); }
-    public void setAttribute(String key, Object value) { attribs.put(key, value); }
-    public void setCharacterEncoding(String arg0) throws UnsupportedEncodingException { throw new UnsupportedOperationException(); }
+    public void removeAttribute(String name) { throw new UnsupportedOperationException(); }
+    public void setAttribute(String name, Object value) { attribs.put(name, value); }
+    public void setCharacterEncoding(String env) throws UnsupportedEncodingException { throw new UnsupportedOperationException(); }
 }
