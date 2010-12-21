@@ -28,6 +28,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
     	dateHeaderFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
     }
     private String contentType;
+    public int getStatus() { return status; }
     public String getResponse() {
         pw.flush();
         return new String(baos.toByteArray());

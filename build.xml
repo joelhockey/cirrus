@@ -5,7 +5,6 @@
   <target name="init">
     <mkdir dir="target/classes" />
     <mkdir dir="target/test-classes" />
-    <mkdir dir="target/${ant.project.name}-${version}" />
   </target>
 
   <target name="compile" depends="init" description="compile">
@@ -55,6 +54,9 @@
         </fileset>
       </batchtest>
     </jairusunit>
+  </target>
+  
+  <target name="report" depends="test" description="junit report" >
     <mkdir dir="target/report/html" />
     <junitreport todir="target/report">
       <fileset dir="target/surefire-reports">

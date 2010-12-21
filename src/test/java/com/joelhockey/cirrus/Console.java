@@ -34,14 +34,20 @@ public class Console {
     }
 
     public static void main(String[] args) throws Exception {
+        Context cx = Context.enter();
+        // create global scope and load 'setup.js'
         CirrusScope scope = new CirrusScope(new MockServletConfig());
+        scope.getCirrus().load("/setup.js");
+
         InputStream jlineIns = ShellLine.getStream(scope);
-        console(scope, System.out, jlineIns != null ? jlineIns : System.in);
+        console(cx, scope, System.out, jlineIns != null ? jlineIns : System.in);
+        Context.exit();
     }
 
-    public static void console(ScriptableObject scope, PrintStream ps, InputStream ins) {
+    public static void console(Context cx, ScriptableObject scope,
+            PrintStream ps, InputStream ins) {
+
         List<String> exitCmds = Arrays.asList("q,quit,exit".split(","));
-        Context cx = Context.enter();
 
         ps.println(cx.getImplementationVersion());
 

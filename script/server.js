@@ -31,7 +31,9 @@ server.addHandler(requestLogHandler);
 
 // jndi datasource
 var ds = new org.hsqldb.jdbc.jdbcDataSource();
-ds.setDatabase("jdbc:hsqldb:file:hsqldb/test/cirrus");
+var dburl = "jdbc:hsqldb:file:hsqldb/test/cirrus";
+print("setting db to: " + dburl)
+ds.setDatabase(dburl);
 ds.setUser("sa");
 var c3p0 = com.mchange.v2.c3p0.DataSources.pooledDataSource(ds);
 var resource = new org.mortbay.jetty.plus.naming.Resource("jdbc/cirrus", c3p0);

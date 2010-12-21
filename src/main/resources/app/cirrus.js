@@ -1,61 +1,153 @@
 // Copyright 2010 Joel Hockey (joel.hockey@gmail.com).  MIT Licence
 
 /**
- * Main cirrus entry point to service HTTP requests.
- * cirrus props:
- * - servletConfig javax.servlet.ServletConfig
- * - servletContext javax.servlet.ServletContext
- * - controllers Object
- * env props:
- * - db com.joelhockey.cirrus.DB
- * - request javax.servlet.http.HttpServletRequest
- * - response javax.servlet.http.HttpServletResponse
- * - timer com.joelhockey.cirrus.Timer
- * Create env props:
- * - flash
- * - method
- * - path
- * - params
- * - headers
- * - body
- * @param env environment
+ * Migrate database to specified version
+ * @param version version to migrate to
  */
-cirrus.service = function(env) {
-    env.flash = {};
-    env.method = env.request.getMethod();
-    env.path = env.request.getRequestURI();
-    env.params = {};
-    for (var en = env.request.getParameterNames(); en.hasMoreElements();) {
-        var paramName = en.nextElement();
-        params[paramName] = request.getParameter(paramName));
-    }
-    env.body = [];
-    env.headers = {};
-    var result = cirrus.forward(env);
-    
-    // result is either String, or {status: Number, headers: Object, body: Array}
-    // merge result into env
-    var status;
-    if (typeof result === "string") {
-        env.body.push(result);
-    } else {
-        status = result.status || env.status;
-        for (var headerName in result.headers) {
-            env.headers[headerName] = result[headerName];
+cirrus.migrate = function(version) {
+    // create timer, and DB object
+    var timer = new com.joelhockey.cirrus.Timer();
+    timer.start();
+    var db = new com.joelhockey.cirrus.DB(this.dataSource);
+    try {
+        var dbversion;
+        try {
+            // get current version from 'db_version' table
+            dbversion = db.selectInt("select max(version) from db_version");
+        } catch (e) {
+            // error reading from 'db_version' table, try init script
+            this.logwarn("Error getting dbversion, will try and load init script: ", e.toString());
+            var sql = this.readFile("/db/000_init.sql");
+            db.execute(sql);
+            db.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
+            timer.mark("db init");
+            dbversion = db.selectInt("select max(version) from db_version");
         }
-        Array.prototype.push.apply(env.body, result.body); 
+        
+        // check if up to date
+        var msg = "db at version: " + dbversion + ", app requires version: " + version;
+        if (dbversion === version) {
+            this.log("db version ok.  " + msg);
+            return;
+        } else if (dbversion > version) { // very strange
+            throw new java.sql.SQLException(msg);
+        }
+        
+        // move from dbversion to version
+        this.log("doing db migration.  " + msg);
+        
+        // look in dir '/db/migrate' to find required files
+        var files = this.getResourcePaths("/db/migrate/") || [];
+        if (!files || files.length === 0) {
+            throw new java.sql.SQLException("No files found in /db/migrate/");
+        }
+        this.log("files in '/db/migrate/':", files)
+        var fileMap = {};
+        for (var file in files) {
+            // check for filename format <nnn>_<desc>.sql
+            var match;
+            if (match = /^\/db\/migrate\/(\d{3})_.*\.sql$/.exec(file)) {
+                var filenum = parseInt(match[1]);
+                if (filenum > dbversion && filenum <= version) {
+                    // check for duplicates
+                    if (fileMap[filenum]) {
+                        throw new java.sql.SQLException("Found duplicate file for migration: " + fileMap[filenum] + ", " + files[i]);
+                    }
+                    fileMap[filenum] = file;
+                }
+            }
+        }
+        
+        // ensure all files exist
+        for (var i = dbversion + 1; i <= version; i++) {
+            if (!fileMap[i]) {
+                throw new java.sql.SQLException("Migrating from: " + dbversion + " to: " + version + ", missing file: "
+                    + i + ", got files: " + JSON.stringify(fileMap));
+            }
+        }
+        
+        timer.mark("check version");
+        // run scripts
+        for (var i = dbversion + 1; i <= version; i++) {
+            this.log("db migration running script: " + fileMap[i]);
+            var sql = this.readFile(fileMap[i]);
+            db.insert("insert into db_version (version, filename, script) values (?, ?, ?)", [i, fileMap[i], sql]);
+            db.execute(sql);
+            timer.mark(fileMap[i]);
+        }
+    } finally {
+        db.close();
+        timer.end("DB migration");
     }
-    
-    // put env.status, env.headers, env.body into servlet
-    if (!response.isStatusSet() && status) {
-        response.setStatus(status);
-    }
-    for (var headerName in env.headers) {
-        response.addHeader(headerName, env.headers[headerName]);
-    }
-    var writer = response.getWriter();
-    for each (var bodyPart in env.body) {
-        writer.write(bodyPart);
+};
+
+/**
+ * Main cirrus entry point to service HTTP requests.
+ * @param request javax.servlet.http.HttpServletRequest
+ * @param response com.joelhockey.cirrus.CirrusHttpServletResponse
+ */
+cirrus.service = function(request, response) {
+    var env = new this.Env();
+    // create timer, and DB object
+    env.timer = new com.joelhockey.cirrus.Timer();
+    env.timer.start();
+    env.db = new com.joelhockey.cirrus.DB(this.dataSource);
+    try {
+        env.request = request;
+        env.response = response;
+        env.flash = {};
+        env.method = String(env.request.getMethod());
+        env.path = String(env.request.getRequestURI());
+        env.params = {};
+        for (var en = env.request.getParameterNames(); en.hasMoreElements();) {
+            var paramName = en.nextElement();
+            env.params[paramName] = request.getParameter(paramName);
+        }
+        
+        env.status = null; // optionally used for response
+        env.body = []; // optionally used for response
+        env.headers = {}; // optionally used for response
+        var result = cirrus.forward(env);
+
+        // processing may cause env.status, env.headers, env.body to be set
+        // result may be either String (for response body) or
+        //   {status: Number, headers: Object, body: Array}
+        // if result has values, then merge them into env
+        // and put env values (if any) into servlet response
+        if (typeof result === "string") {
+            env.body.push(result);
+        } else if (result) {
+            if (result.status) {
+                env.status = result.status;
+            }
+            // merge result into env
+            for (var headerName in result.headers) {
+                env.headers[headerName] = result.headers[headerName];
+            }
+            if (typeof result.body === "string") {
+                env.body.push(result.body)
+            } else {
+                Array.prototype.push.apply(env.body, result.body);
+            }
+        }
+
+        // put env.status, env.headers, env.body into servlet response
+        if (env.status) {
+            response.setStatus(env.status);
+        }
+        for (var headerName in env.headers) {
+            response.addHeader(headerName, env.headers[headerName]);
+        }
+        if (env.body.length > 0) {
+            var writer = response.getWriter();
+            for each (var part in env.body) {
+                writer.write(part);
+            }
+        }
+    } finally {
+        env.db.close();
+        env.timer.end(env.method + " " + env.path
+                + " " + response.getStatus());
     }
 }
 
@@ -63,8 +155,8 @@ cirrus.service = function(env) {
  * Method and path are optional to override env.method and env.path
  * Adds controller and action props to env.
  * @param env environment
- * @param method optional method - e.g. GET, POST
- * @param path optional path - e.g. /user/list
+ * @param method optional method - e.g. 'GET', 'POST'
+ * @param path optional path - e.g. '/user/list'
  */
 cirrus.forward = function(env, method, path) {
     method = method || env.method;
@@ -89,14 +181,13 @@ cirrus.forward = function(env, method, path) {
                 throw null;
             }
         } catch (e) {
-            this.logwarn("warning, no controller defined for path: " + path);
+            this.logwarn("warning, could not load ctlr=" + env.controller
+                    + ", path=" + path + ", error=" + e.message);
             throw 404;
         }
 
-        // call before
-        if (ctlr.before && ctlr.before.call(env) === false) {
-            return; // return early, request fully serviced
-        }
+        // call before if exists - will throw exception to stop processing
+        ctlr.before && ctlr.before.call(env);
 
         // check 'If-Modified-Since' vs 'Last-Modified' and return 304 if possible
         if (method === "GET" && ctlr.getLastModified) {
@@ -115,11 +206,10 @@ cirrus.forward = function(env, method, path) {
     
         // find method handler or 405
         var methodHandler = ctlr[method] || ctlr.$;
-        cirrus.log("ctlr", ctlr)
         if (!methodHandler) {
             // return 405 Method Not Allowed
-            this.logwarn("warning, no handler in ctlr for method="
-                    + method + ", path=" + path);
+            this.logwarn("warning, no handler in ctlr=" + env.controller 
+                    + " for method=" + method + ", path=" + path);
             var allowed = [m for each (m in "OPTIONS,GET,HEAD,POST,PUT,DELETE,TRACE".split(",")) if (ctlr[m])];
             env.response.addHeader("Allow", allowed.join(", "));
             throw 405;
@@ -163,78 +253,6 @@ cirrus.forward = function(env, method, path) {
 })();
 
 
-/**
- * Migrate database to specified version
- * @param env environment containing db, timer.
- */
-cirrus.migrate = function(env, version) {
-    var dbversion;
-    try {
-        // get current version from 'db_version' table
-        dbversion = env.db.selectInt("select max(version) from db_version");
-    } catch (e) {
-        // error reading from 'db_version' table, try init script
-        this.logwarn("Error getting db version, will try and load init script: ", e.toString());
-        var sql = this.readFile("/db/000_init.sql");
-        env.db.execute(sql);
-        env.db.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
-        env.timer.mark("db init");
-        dbversion = env.db.selectInt("select max(version) from db_version");
-    }
-    
-    // check if up to date
-    var msg = "db at version: " + dbversion + ", app requires version: " + version;
-    if (dbversion === version) {
-        this.log("db version ok.  " + msg);
-        return;
-    } else if (dbversion > version) { // very strange
-        throw new java.sql.SQLException(msg);
-    }
-    
-    // move from dbversion to version
-    this.log("doing db migration.  " + msg);
-    
-    // look in dir '/db/migrate' to find required files
-    var files = this.getResourcePaths("/db/migrate/") || [];
-    if (!files || files.length === 0) {
-        throw new java.sql.SQLException("No files found in /db/migrate/");
-    }
-    this.log("files in '/db/migrate/':", files)
-    var fileMap = {};
-    for (var file in files) {
-        // check for filename format <nnn>_<desc>.sql
-        var match;
-        if (match = /^\/db\/migrate\/(\d{3})_.*\.sql$/.exec(file)) {
-            var filenum = parseInt(match[1]);
-            if (filenum > dbversion && filenum <= version) {
-                // check for duplicates
-                if (fileMap[filenum]) {
-                    throw new java.sql.SQLException("Found duplicate file for migration: " + fileMap[filenum] + ", " + files[i]);
-                }
-                fileMap[filenum] = file;
-            }
-        }
-    }
-    
-    // ensure all files exist
-    for (var i = dbversion + 1; i <= version; i++) {
-        if (!fileMap[i]) {
-            throw new java.sql.SQLException("Migrating from: " + dbversion + " to: " + version + ", missing file: "
-                + i + ", got files: " + JSON.stringify(fileMap));
-        }
-    }
-    
-    env.timer.mark("check version");
-    // run scripts
-    for (var i = dbversion + 1; i <= version; i++) {
-        this.log("db migration running script: " + fileMap[i]);
-        var sql = this.readFile(fileMap[i]);
-        env.db.insert("insert into db_version (version, filename, script) values (?, ?, ?)", [i, fileMap[i], sql]);
-        env.db.execute(sql);
-        env.timer.mark(fileMap[i]);
-    }
-};
-
 /** Env is environment holding request, response, etc */
 cirrus.Env = function() {};
 
@@ -260,7 +278,7 @@ cirrus.Env.prototype.jst = function() {
     
     try {
         var template = cirrus.jst(controller + "." + action);
-        this.response.setContentType("text/html");
+        this.response.setContentType("text/html; charset=UTF-8");
         template.render(this.response.getWriter(), context);
     } finally {
         this.timer.mark("view");

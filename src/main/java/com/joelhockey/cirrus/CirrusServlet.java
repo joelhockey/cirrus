@@ -4,8 +4,6 @@ package com.joelhockey.cirrus;
 
 import java.io.IOException;
 import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.Enumeration;
 
 import javax.naming.InitialContext;
 import javax.servlet.ServletException;
@@ -19,11 +17,9 @@ import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
-import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
@@ -64,7 +60,7 @@ public class CirrusServlet extends HttpServlet {
             Connection dbconn = DATA_SOURCE.getConnection();
             dbconn.close();
 
-            GLOBAL_SCOPE = new CirrusScope(getServletConfig(), DATA_SOURCE);
+            GLOBAL_SCOPE = new CirrusScope(getServletConfig());
 
             // check if running in debug mode
             if (System.getProperty("debugjs") != null) {
@@ -81,32 +77,22 @@ public class CirrusServlet extends HttpServlet {
             throw new ServletException("Error getting dbconn", e);
         }
 
-        DB db = null;
+        // put 'dataSource' in cirrus
         Cirrus cirrus = GLOBAL_SCOPE.getCirrus();
-        Timer timer = new Timer();
+        cirrus.put("dataSource", cirrus, DATA_SOURCE);
+
         Context cx = Context.enter();
-        // ensure we are using our WrapFactory
-        cx.setWrapFactory(Cirrus.WRAP_FACTORY);
+        cx.setWrapFactory(Cirrus.WRAP_FACTORY); // use cirrus WrapFactory
 
         try {
-            // var env = new cirrus.Env()
-            Function f = (Function) cirrus.get("Env", cirrus);
-            Scriptable env = f.construct(cx, GLOBAL_SCOPE, ScriptRuntime.emptyArgs);
-            db = new DB(DATA_SOURCE);
-            env.put("db", env, db);
-            env.put("timer", env, timer);
-
             // cirrus.migrate(env, dbversion)
             Function migrate = (Function) cirrus.get("migrate", cirrus);
-            migrate.call(cx, GLOBAL_SCOPE, cirrus, new Object[] {env, dbversion});
+            migrate.call(cx, GLOBAL_SCOPE, cirrus, new Object[] {dbversion});
         } catch (Exception e) {
             log.error("Error migrating db", e);
             throw new ServletException("Error migrating db", e);
         } finally {
-            if (db != null) {
-                db.close();
-            }
-            timer.end("DB Migration");
+            Context.exit();
         }
         STATIC_INIT = true;
     }
@@ -117,41 +103,19 @@ public class CirrusServlet extends HttpServlet {
      */
     @Override
     public void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        CirrusHttpServletResponse cirrusRes = new CirrusHttpServletResponse(res);
         try {
             Context cx = Context.enter();
-            // ensure we are using our WrapFactory
-            cx.setWrapFactory(Cirrus.WRAP_FACTORY);
+            cx.setWrapFactory(Cirrus.WRAP_FACTORY); // use cirrus WrapFactory
 
             Cirrus cirrus = GLOBAL_SCOPE.getCirrus();
             cirrus.load("/app/cirrus.js");
 
-            // create 'env' object and set flash, method, path, params, body
-            // var env = new cirrus.Env()
-            Function f = (Function) cirrus.get("Env", cirrus);
-            Scriptable env = f.construct(cx, GLOBAL_SCOPE, ScriptRuntime.emptyArgs);
-
-            // set up db, timer
-            DB db = new DB(DATA_SOURCE);
-            env.put("db", env, db);
-            Timer timer = new Timer();
-            timer.start();
-            env.put("timer", env, timer);
-
-            // servlet request, response
-            env.put("request", env, new NativeJavaObject(GLOBAL_SCOPE, req, HttpServletRequest.class));
-            env.put("response", env, new NativeJavaObject(GLOBAL_SCOPE, cirrusRes, HttpServletResponse.class));
-
             try {
                 // 'cirrus.forward(env)'
                 Function service = (Function) cirrus.get("service", cirrus);
-                service.call(cx, cirrus, cirrus, new Object[] {env});
+                service.call(cx, cirrus, cirrus, new Object[] { req, res });
             } finally {
                 Context.exit();
-                // close DB, record time
-                db.close();
-                timer.end(req.getMethod() + " " + req.getRequestURI()
-                        + " " + cirrusRes.getStatus());
             }
         } catch (Exception e) {
             log.error("Error running cirrus", e);

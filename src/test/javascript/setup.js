@@ -4,7 +4,7 @@
 var cirrus = cirrus || new com.joelhockey.cirrus.Cirrus(
         this, new com.joelhockey.cirrus.MockServletConfig());
 
-load("/app/cirrus.js");
+cirrus.load("/app/cirrus.js");
 
 // set wrap factory for current context
 org.mozilla.javascript.Context.enter().setWrapFactory(
@@ -17,15 +17,19 @@ org.mozilla.javascript.Context.exit();
     var ds = ic.lookup("jdbc/cirrus");
     if (!ds) {
         var hsqldb = new org.hsqldb.jdbc.jdbcDataSource();
-        hsqldb.setDatabase("jdbc:hsqldb:file:hsqldb/dev/cirrus");
+        var dburl = "jdbc:hsqldb:file:hsqldb/dev/cirrus";
+        cirrus.log("setting db to: " + dburl);
+        hsqldb.setDatabase(dburl);
         hsqldb.setUser("sa");
         ds = com.mchange.v2.c3p0.DataSources.pooledDataSource(hsqldb);
         ic.bind("jdbc/cirrus", ds);
     }
+    // add 'dataSource' property to cirus
+    cirrus.dataSource = ds;
 })();
 
 var setup = setup || {
-    servlet: function() {
+    servlet: function(method, path) {
         var servlet = new com.joelhockey.cirrus.CirrusServlet();
         var sconf = new com.joelhockey.cirrus.MockServletConfig();
         sconf.initParameters.dbname = "jdbc/cirrus";
