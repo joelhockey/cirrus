@@ -17,9 +17,6 @@ import org.apache.commons.logging.LogFactory;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
-import org.mozilla.javascript.NativeJavaObject;
-import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
@@ -85,7 +82,7 @@ public class CirrusServlet extends HttpServlet {
         cx.setWrapFactory(Cirrus.WRAP_FACTORY); // use cirrus WrapFactory
 
         try {
-            // cirrus.migrate(env, dbversion)
+            // cirrus.migrate(dbversion)
             Function migrate = (Function) cirrus.get("migrate", cirrus);
             migrate.call(cx, GLOBAL_SCOPE, cirrus, new Object[] {dbversion});
         } catch (Exception e) {
@@ -98,8 +95,7 @@ public class CirrusServlet extends HttpServlet {
     }
 
     /**
-     * Creates 'env' JavaScript object, populates with request, response,
-     * etc, and calls JavaScript 'cirrus.forward(env)'
+     * Calls JavaScript 'cirrus.service(request, response)'
      */
     @Override
     public void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
@@ -111,7 +107,6 @@ public class CirrusServlet extends HttpServlet {
             cirrus.load("/app/cirrus.js");
 
             try {
-                // 'cirrus.forward(env)'
                 Function service = (Function) cirrus.get("service", cirrus);
                 service.call(cx, cirrus, cirrus, new Object[] { req, res });
             } finally {

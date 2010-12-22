@@ -22,13 +22,11 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
 public class MockHttpServletRequest implements HttpServletRequest {
-    public Map<String, String> params = new HashMap<String, String>() {{
-        put("param", "param");
-        put("hex", "0123456789abcdef");
-    }};
-    public Map<String, Object> attribs = new HashMap<String, Object>();
     public String method;
+    public Map<String, String> params = new HashMap<String, String>();
+    public Map<String, Object> attribs = new HashMap<String, Object>();
     public Map<String, String> headers = new HashMap<String, String>();
+    public String body;
     public String requestURI;
     public MockHttpSession session = new MockHttpSession();
 
@@ -38,8 +36,12 @@ public class MockHttpServletRequest implements HttpServletRequest {
     }
 
     public MockHttpServletRequest(String method, String requestURI) {
+        this(method, requestURI, "");
+    }
+    public MockHttpServletRequest(String method, String requestURI, String body) {
         this.method = method;
         this.requestURI = requestURI;
+        this.body = body;
     }
     public String getAuthType() { return null; }
     public String getContextPath() { return ""; }
@@ -78,7 +80,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
     public String getCharacterEncoding() { return "UTF-8"; }
     public int getContentLength() { return 0; }
     public String getContentType() { return "text/plain"; }
-    public ServletInputStream getInputStream() throws IOException { return null; }
+    public ServletInputStream getInputStream() throws IOException { return new MockServletInputStream(body); }
     public String getLocalAddr() { return "127.0.0.1"; }
     public String getLocalName() { return "localhost"; }
     public int getLocalPort() { return 80; }

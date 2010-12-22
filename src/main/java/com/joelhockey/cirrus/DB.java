@@ -29,6 +29,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.joelhockey.codec.Hex;
 import com.joelhockey.codec.JSON;
+import com.joelhockey.codec.JSONObject;
 
 public class DB {
     private static final Log log = LogFactory.getLog(DB.class);
@@ -100,6 +101,59 @@ public class DB {
      */
     public int insert(String sql, Object... params) throws SQLException {
         return update(sql, "insert", params);
+    }
+
+    /**
+     * insert json array of objects.  Column names convert from camelCase
+     * to under_score.
+     * @param table name of table
+     * @param json json formatted array of objects
+     * @return number of records inserted.
+     * @throws SQLException if sql error
+     * @throws CodecException if error parsing JSON
+     * @throws ClassCastException if JSON not array of objects
+     */
+    public int insertJson(String table, String json) throws SQLException {
+        List<Map<String, Object>> records = (List) JSON.parse(json);
+        for (int i = 0; i < records.size(); i++) {
+            Map<String, Object> record = records.get(i);
+            StringBuilder insert = new StringBuilder("insert into " + table + "(");
+            StringBuilder qmarks = new StringBuilder(" values (");
+
+            String[] cols = record.keySet().toArray(new String[0]);
+            Object[] params = new Object[cols.length];
+            boolean comma = false;
+            for (int j = 0; j < cols.length; j++) {
+                String camelCase = cols[j];
+                params[j] = record.get(camelCase);
+                StringBuilder colname = new StringBuilder();
+                boolean lastLower = false;
+                for (int k = 0; k < camelCase.length(); k++) {
+                    char c = camelCase.charAt(k);
+                    if (Character.isLowerCase(c)) {
+                        lastLower = true;
+                    } else {
+                        // if last char lower and this one upper, then add underscore
+                        if (lastLower) {
+                            colname.append('_');
+                        }
+                        lastLower = false;
+                        c = Character.toLowerCase(c);
+                    }
+                    colname.append(c);
+                }
+                if (comma) {
+                    insert.append(',');
+                    qmarks.append(',');
+                }
+                comma = true;
+                insert.append(colname);
+                qmarks.append('?');
+            }
+            String sql = insert.append(')').append(qmarks).append(')').toString();
+            insert(sql, params);
+        }
+        return records.size();
     }
 
     /**
@@ -186,7 +240,7 @@ public class DB {
      * @return number of records deleted
      * @throws SQLException if sql error
      */
-    public int dl33t(String sql) throws SQLException {
+    public int del(String sql) throws SQLException {
         return delete(sql, EMPTY);
     }
 
@@ -197,7 +251,7 @@ public class DB {
      * @return number of records deleted
      * @throws SQLException if sql error
      */
-    public int dl33t(String sql, Object... params) throws SQLException {
+    public int del(String sql, Object... params) throws SQLException {
         return delete(sql, params);
     }
 

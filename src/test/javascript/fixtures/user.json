@@ -2,11 +2,11 @@
     {
         username: "alice",
         salt: "00000000000000000000000000000000",
-        hashed_password: ""
+        hashedPassword: ""
     },
     {
         username: "bob",
         salt: "00000000000000000000000000000000",
-        hashed_password: ""
+        hashedPassword: ""
     },
 ]

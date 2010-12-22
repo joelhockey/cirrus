@@ -56,7 +56,7 @@ CirrusTest = {
 
         assertEquals("GET /cirrustest/action1", cirrus.forward(env));
         assertEquals("POST /cirrustest/action1", cirrus.forward(env, "POST"));
-        assertEquals("GET /cirrustest/action2", cirrus.forward(env, "GET", "/cirrustest/action2"));
+        assertEquals("GET /cirrustest/action2", cirrus.forward(env, "GET /cirrustest/action2"));
     },
     
     testForwardBeforeAfter: function() {

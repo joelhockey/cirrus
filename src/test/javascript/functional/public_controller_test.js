@@ -3,28 +3,20 @@
 PublicControllerTest = {
     setUp: function() {
         load("/setup.js");
-        this.servlet = setup.servlet();
     },
 
     testGetFavicon: function() {
-        var req = new com.joelhockey.cirrus.MockHttpServletRequest("GET", "/favicon.ico");
-        var res = new com.joelhockey.cirrus.MockHttpServletResponse();
-        this.servlet.service(req, res);
-        assertEquals(200, res.status);
-        assertEquals("image/x-icon", res.getContentType());
+        var response = cirrus.test("GET /favicon.ico")
+        assertEquals(200, response.status);
+        assertEquals("image/x-icon", response.contentType);
 
-        req = new com.joelhockey.cirrus.MockHttpServletRequest("GET", "/favicon.ico");
-        req.headers["If-Modified-Since"] = res.headers["Last-Modified"];
-        res = new com.joelhockey.cirrus.MockHttpServletResponse();
-        this.servlet.service(req, res);
-        assertEquals(304, res.status);
+        response = cirrus.test("GET /favicon.ico", {"If-Modified-Since": response.headers["Last-Modified"]});
+        assertEquals(304, response.status);
     },
     
     testPostFavicon: function() {
-        var req = new com.joelhockey.cirrus.MockHttpServletRequest("POST", "/favicon.ico");
-        var res = new com.joelhockey.cirrus.MockHttpServletResponse();
-        this.servlet.service(req, res);
-        assertEquals(405, res.status);
-        assertEquals("GET", res.headers["Allow"]);
+        var response = cirrus.test("POST /favicon.ico");
+        assertEquals(405, response.status);
+        assertEquals("GET", response.headers["Allow"]);
     }    
 }

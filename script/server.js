@@ -31,7 +31,7 @@ server.addHandler(requestLogHandler);
 
 // jndi datasource
 var ds = new org.hsqldb.jdbc.jdbcDataSource();
-var dburl = "jdbc:hsqldb:file:hsqldb/test/cirrus";
+var dburl = "jdbc:hsqldb:file:hsqldb/cirrus";
 print("setting db to: " + dburl)
 ds.setDatabase(dburl);
 ds.setUser("sa");

@@ -43,25 +43,37 @@ cirrus.migrate = function(version) {
         }
         this.log("files in '/db/migrate/':", files)
         var fileMap = {};
+        var maxVersion = 0;
+        var match;
         for (var file in files) {
             // check for filename format <nnn>_<desc>.sql
-            var match;
             if (match = /^\/db\/migrate\/(\d{3})_.*\.sql$/.exec(file)) {
                 var filenum = parseInt(match[1]);
-                if (filenum > dbversion && filenum <= version) {
+                maxVersion = Math.max(maxVersion, filenum);
+                if (filenum > dbversion) {
                     // check for duplicates
                     if (fileMap[filenum]) {
-                        throw new java.sql.SQLException("Found duplicate file for migration: " + fileMap[filenum] + ", " + files[i]);
+                        throw new java.sql.SQLException(
+                                "Found duplicate file for migration: "
+                                + fileMap[filenum] + ", " + files[i]);
                     }
                     fileMap[filenum] = file;
                 }
             }
         }
         
+        // if version not provided, set to max version found
+        if (version === undefined) {
+            this.logwarn("db migrate target version not provided, "
+                    + "using max value found: " + maxVersion);
+            version = maxVersion
+        }
+        
         // ensure all files exist
         for (var i = dbversion + 1; i <= version; i++) {
             if (!fileMap[i]) {
-                throw new java.sql.SQLException("Migrating from: " + dbversion + " to: " + version + ", missing file: "
+                throw new java.sql.SQLException("Migrating from: " + dbversion 
+                    + " to: " + version + ", missing file: "
                     + i + ", got files: " + JSON.stringify(fileMap));
             }
         }
@@ -155,10 +167,18 @@ cirrus.service = function(request, response) {
  * Method and path are optional to override env.method and env.path
  * Adds controller and action props to env.
  * @param env environment
- * @param method optional method - e.g. 'GET', 'POST'
- * @param path optional path - e.g. '/user/list'
+ * @param requestLine optional HTTP Request-Line - e.g. 'GET /user/list'
  */
-cirrus.forward = function(env, method, path) {
+cirrus.forward = function(env, requestLine) {
+    var method, path;
+    // read method and path from requestLine if provided
+    if (requestLine) {
+        var methodPath = requestLine.split(" ");
+        method = methodPath[0];
+        path = methodPath[1];
+    }
+    
+    // use values from env if not provided in requestLine
     method = method || env.method;
     path = path || env.path;
     
