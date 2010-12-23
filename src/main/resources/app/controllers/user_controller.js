@@ -7,7 +7,7 @@ cirrus.controllers.user = {
     },
     GET : {
         detail : function(id) {
-            var user = this.db.selectAll("select username from user where id=?", id)[0];
+            var user = cirrus.db.selectAll("select username from user where id=?", id)[0];
             if (user) {
                 this.jst({user: user});
             } else {
@@ -16,7 +16,7 @@ cirrus.controllers.user = {
             }
         },
         $ : function () {
-            var users = this.db.selectAll("select id, username, created_at, version from user");
+            var users = cirrus.db.selectAll("select id, username, created_at, version from user");
             this.jst("list", {users: users});
         },
     },

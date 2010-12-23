@@ -8,20 +8,20 @@ cirrus.migrate = function(version) {
     // create timer, and DB object
     var timer = new com.joelhockey.cirrus.Timer();
     timer.start();
-    var db = new com.joelhockey.cirrus.DB(this.dataSource);
+    cirrus.db.open();
     try {
         var dbversion;
         try {
             // get current version from 'db_version' table
-            dbversion = db.selectInt("select max(version) from db_version");
+            dbversion = cirrus.db.selectInt("select max(version) from db_version");
         } catch (e) {
             // error reading from 'db_version' table, try init script
             this.logwarn("Error getting dbversion, will try and load init script: ", e.toString());
             var sql = this.readFile("/db/000_init.sql");
-            db.execute(sql);
-            db.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
+            cirrus.db.execute(sql);
+            cirrus.db.insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", [sql]);
             timer.mark("db init");
-            dbversion = db.selectInt("select max(version) from db_version");
+            dbversion = cirrus.db.selectInt("select max(version) from db_version");
         }
         
         // check if up to date
@@ -34,14 +34,14 @@ cirrus.migrate = function(version) {
         }
         
         // move from dbversion to version
-        this.log("doing db migration.  " + msg);
+        this.log("db migration: " + msg);
         
         // look in dir '/db/migrate' to find required files
         var files = this.getResourcePaths("/db/migrate/") || [];
         if (!files || files.length === 0) {
             throw new java.sql.SQLException("No files found in /db/migrate/");
         }
-        this.log("files in '/db/migrate/':", files)
+        this.log("files in '/db/migrate/'", files)
         var fileMap = {};
         var maxVersion = 0;
         var match;
@@ -83,12 +83,12 @@ cirrus.migrate = function(version) {
         for (var i = dbversion + 1; i <= version; i++) {
             this.log("db migration running script: " + fileMap[i]);
             var sql = this.readFile(fileMap[i]);
-            db.insert("insert into db_version (version, filename, script) values (?, ?, ?)", [i, fileMap[i], sql]);
-            db.execute(sql);
+            cirrus.db.insert("insert into db_version (version, filename, script) values (?, ?, ?)", [i, fileMap[i], sql]);
+            cirrus.db.execute(sql);
             timer.mark(fileMap[i]);
         }
     } finally {
-        db.close();
+        cirrus.db.close();
         timer.end("DB migration");
     }
 };
@@ -103,7 +103,7 @@ cirrus.service = function(request, response) {
     // create timer, and DB object
     env.timer = new com.joelhockey.cirrus.Timer();
     env.timer.start();
-    env.db = new com.joelhockey.cirrus.DB(this.dataSource);
+    cirrus.db.open(); // close in finally
     try {
         env.request = request;
         env.response = response;
@@ -157,7 +157,7 @@ cirrus.service = function(request, response) {
             }
         }
     } finally {
-        env.db.close();
+        cirrus.db.close();
         env.timer.end(env.method + " " + env.path
                 + " " + response.getStatus());
     }

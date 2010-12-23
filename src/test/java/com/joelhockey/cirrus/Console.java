@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.tools.ToolErrorReporter;
+import org.mozilla.javascript.tools.shell.Global;
 import org.mozilla.javascript.tools.shell.Main;
 import org.mozilla.javascript.tools.shell.ShellLine;
 
@@ -28,19 +30,22 @@ import org.mozilla.javascript.tools.shell.ShellLine;
  * @author Joel Hockey
  */
 public class Console {
-    static {
-        Logger.getRootLogger().addAppender(
-                new ConsoleAppender(new PatternLayout("%m%n"), "System.out"));
-    }
 
     public static void main(String[] args) throws Exception {
         Context cx = Context.enter();
         // create global scope and load 'setup.js'
-        CirrusScope scope = new CirrusScope(new MockServletConfig());
-        scope.getCirrus().load("/setup.js");
 
-        InputStream jlineIns = ShellLine.getStream(scope);
-        console(cx, scope, System.out, jlineIns != null ? jlineIns : System.in);
+        Global global = Main.getGlobal();
+        URL setup = Console.class.getResource("/setup.js");
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(setup.openStream()));
+        cx.evaluateReader(global, reader, setup.toString(), 1, null);
+
+        Logger.getRootLogger().addAppender(new ConsoleAppender(
+                new PatternLayout("%m%n"), "System.out"));
+
+        InputStream jlineIns = ShellLine.getStream(global);
+        console(cx, global, System.out, jlineIns != null ? jlineIns : System.in);
         Context.exit();
     }
 
@@ -50,9 +55,6 @@ public class Console {
         List<String> exitCmds = Arrays.asList("q,quit,exit".split(","));
 
         ps.println(cx.getImplementationVersion());
-
-        // Use the interpreter for interactive input
-        cx.setOptimizationLevel(-1);
 
         BufferedReader in = new BufferedReader(new InputStreamReader(ins));
         int lineno = 1;
@@ -65,7 +67,7 @@ public class Console {
             while (true) {
                 try {
                     String line = in.readLine();
-                    if (line == null || exitCmds.contains(line.trim())) {
+                    if (line == null) {
                         ps.println();
                         return;
                     }
@@ -80,12 +82,32 @@ public class Console {
                     break;
                 }
             }
+
+            // compile
             Script script = Main.loadScriptFromSource(
                     cx, source, "<stdin>", lineno, null);
             if (script == null) { // error compiling
                 continue;
             }
-            Object result = Main.evaluateScript(script, cx, scope);
+
+            // Main.evaluateScript
+            Object result= Context.getUndefinedValue();
+            try {
+                result = script.exec(cx, scope);
+            } catch (RhinoException rex) {
+                // exit if one of the 'exitCmds'
+                if (exitCmds.contains(source.trim())) {
+                    return;
+                }
+                ToolErrorReporter.reportException(
+                    cx.getErrorReporter(), rex);
+            } catch (VirtualMachineError ex) {
+                // Treat StackOverflow and OutOfMemory as runtime errors
+                ex.printStackTrace();
+                String msg = ToolErrorReporter.getMessage(
+                    "msg.uncaughtJSException", ex.toString());
+                Context.reportError(msg);
+            }
 
             // Avoid printing out undefined or function definitions.
             if (result != Context.getUndefinedValue()

@@ -9,7 +9,7 @@ cirrus.controllers.login = {
     
     POST : {
         $ : function() {
-            var users = this.db.selectAll("select username, salt, hashed_password from user where username=?", [this.params.username]);
+            var users = cirrus.db.selectAll("select username, salt, hashed_password from user where username=?", [this.params.username]);
             try {
                 var user = users[0];
                 var hash = com.joelhockey.jless.security.Digest.newSha256Digest().

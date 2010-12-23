@@ -28,8 +28,11 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
+import javax.sql.DataSource;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.logging.Log;
@@ -68,19 +71,53 @@ public class Cirrus extends NativeObject {
     private Map<String, CacheEntry> cache = new HashMap<String, CacheEntry>();
     private Scriptable global;
     private ServletConfig servletConfig;
+    private ThreadLocal<DB> db;
 
     /**
-     * Create Cirrus instance.
+     * Create Cirrus instance and load '/app/cirrus.js'.
+     * Looks up DataSource from servletConfig.getInitParameter('dbname')
      * @param global global scope
      * @param servletConfig servlet config used to access files within web context
+     * @throws NamingException if error looking up
+     * @throws IOException if loading '/app/cirrus.js'
      */
-    public Cirrus(Scriptable global, ServletConfig servletConfig) {
+    public Cirrus(ScriptableObject global, ServletConfig servletConfig)
+            throws NamingException, IOException {
+
+        // get datasource using 'dbname' servlet init-param
+        InitialContext ic = new InitialContext();
+        String dbname = servletConfig.getInitParameter("dbname");
+        log.info("servlet init-params dbname=" + dbname
+                + ", looking up jndi for datasource");
+        DataSource dataSource = (DataSource) ic.lookup(dbname);
+        init(global, servletConfig, dataSource);
+    }
+
+    /**
+     * Create Cirrus instance and load '/app/cirrus.js'.
+     * @param global global scope
+     * @param servletConfig servlet config used to access files within web context
+     * @param dataSource datasource for DB
+     */
+    public Cirrus(ScriptableObject global, ServletConfig servletConfig, DataSource dataSource) throws IOException {
+        init(global, servletConfig, dataSource);
+    }
+
+    private void init(ScriptableObject global, ServletConfig servletConfig, final DataSource dataSource) throws IOException {
         this.global = global;
         this.servletConfig = servletConfig;
+        this.db = new ThreadLocal<DB>() {
+            @Override
+            protected DB initialValue() {
+                return new DB(dataSource);
+            };
+        };
 
         Context cx = Context.enter();
+        cx.setWrapFactory(WRAP_FACTORY);
         ScriptRuntime.setObjectProtoAndParent(this, global);
         put("controllers", this, cx.newObject(global));
+        put("models", this, cx.newObject(global));
 
         // cirrus functions
         String[] names = {
@@ -101,7 +138,27 @@ public class Cirrus extends NativeObject {
         defineFunctionProperties(names, Cirrus.class, ScriptableObject.DONTENUM);
         put("servletConfig", this, servletConfig);
         put("servletContext", this, servletConfig.getServletContext());
+
+        // update global with 'cirrus' and 'JSON'
+        put("cirrus", global, this);
+        put("JSON", global, new RhinoJSON());
+
+        // load '/app/cirrus.js'
+        load("/app/cirrus.js");
         Context.exit();
+    }
+
+    /** @return DB instance associated with current thread */
+    public DB getDB() {
+        return db.get();
+    }
+
+    @Override
+    public Object get(String name, Scriptable start) {
+        if ("db".equals(name)) {
+            return getDB();
+        }
+        return super.get(name, start);
     }
 
     /**

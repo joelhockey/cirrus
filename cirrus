@@ -6,4 +6,4 @@ if [ $1 = debugjs ]; then _JVMARGS="$_JVMARGS -Ddebugjs"; shift; fi;
 if [ $1 = debugjvm ]; then _JVMARGS="$_JVMARGS -agentlib:jdwp=server=y,suspend=n,transport=dt_socket,address=2718"; shift; fi;
 if [ $1 = suspendjvm ]; then _JVMARGS="$_JVMARGS -agentlib:jdwp=server=y,suspend=y,transport=dt_socket,address=2718"; shift; fi;
 
-java $_JVMARGS -jar lib/runtime/js-1.7R2.jar script/$1.js
+java $_JVMARGS -jar lib/runtime/js.jar script/$1.js
