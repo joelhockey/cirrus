@@ -27,10 +27,15 @@ import javax.sql.DataSource;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.joelhockey.codec.CodecException;
 import com.joelhockey.codec.Hex;
 import com.joelhockey.codec.JSON;
-import com.joelhockey.codec.JSONObject;
 
+/**
+ * Wrapper for jdbc to make sql easier.
+ * This class is NOT thread-safe.
+ * @author Joel Hockey
+ */
 public class DB {
     private static final Log log = LogFactory.getLog(DB.class);
     private static final Object[] EMPTY = null;
@@ -48,16 +53,28 @@ public class DB {
         } catch (Exception e) {} // ignore
     }
 
+    private DataSource dataSource;
     private Connection dbconn;
 
     /**
      * Construct DB with data source.
-     * @param scope js scope
+     * This class is NOT thread-safe.
      * @param dataSource data source
-     * @throws SQLException if error getting connection from data source
      */
-    public DB(DataSource dataSource) throws SQLException {
-        dbconn = dataSource.getConnection();
+    public DB(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    /**
+     * Open database connection.
+     * @throws SQLException if error getting db connection
+     */
+    public void open() throws SQLException {
+        if (dbconn == null) {
+            dbconn = dataSource.getConnection();
+        } else {
+            log.warn("ignoring DB.open, dbconn already open");
+        }
     }
 
     /**
@@ -67,10 +84,16 @@ public class DB {
         try {
             if (dbconn != null) {
                 dbconn.close();
+                dbconn = null;
             }
         } catch (Exception e) {
             log.error("Error closing dbconn", e);
         }
+    }
+
+    /** @return db connection */
+    public Connection getConnection() {
+        return dbconn;
     }
 
     /**
@@ -104,17 +127,51 @@ public class DB {
     }
 
     /**
-     * insert json array of objects.  Column names convert from camelCase
-     * to under_score.
+     * insert record.  Column names convert from camelCase to under_score.
      * @param table name of table
-     * @param json json formatted array of objects
+     * @param record Map that represents record
+     * @return number of records inserted.
+     * @throws SQLException if sql error
+     * @throws CodecException if error parsing JSON
+     * @throws ClassCastException if JSON not array of objects
+     */
+    public int insert(String table, Map<String, Object> record) throws SQLException {
+        List<Map<String, Object>> records = new ArrayList<Map<String, Object>>(1);
+        records.add(record);
+        return insertAll(table, records);
+    }
+
+    /**
+     * insert json object or array of objects
+     * Column names convert from camelCase to under_score.
+     * @param table name of table
+     * @param json json formatted object or array of objects
      * @return number of records inserted.
      * @throws SQLException if sql error
      * @throws CodecException if error parsing JSON
      * @throws ClassCastException if JSON not array of objects
      */
     public int insertJson(String table, String json) throws SQLException {
-        List<Map<String, Object>> records = (List) JSON.parse(json);
+        Object js = JSON.parse(json);
+        if (js instanceof Map) {
+            return insert(table, (Map) js);
+        }
+        return insertAll(table, (List) JSON.parse(json));
+    }
+
+    /**
+     * insert list of maps.  Column names convert from camelCase
+     * to under_score.
+     * @param table name of table
+     * @param records List of Maps that represent records
+     * @return number of records inserted.
+     * @throws SQLException if sql error
+     * @throws CodecException if error parsing JSON
+     * @throws ClassCastException if JSON not array of objects
+     */
+    public int insertAll(String table, List<Map<String, Object>> records)
+            throws SQLException {
+
         for (int i = 0; i < records.size(); i++) {
             Map<String, Object> record = records.get(i);
             StringBuilder insert = new StringBuilder("insert into " + table + "(");
@@ -286,6 +343,17 @@ public class DB {
             log.debug(format("sql: select : %s : %05d : %s : %s",
                     ok ? "ok" : "error", timeTaken, sql, JSON.stringify(params)));
         }
+    }
+
+    /**
+     * Return all rows
+     * @param sql sql select statement with '?' for params
+     * @param params params
+     * @return List&lt;Map&lt;String, Object>> list of rows
+     * @throws SQLException if sql error
+     */
+    public List<Map<String, Object>> selectAll(String sql) throws SQLException {
+        return selectAll(sql, EMPTY);
     }
 
     /**
