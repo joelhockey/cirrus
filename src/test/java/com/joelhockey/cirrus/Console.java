@@ -10,7 +10,6 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.List;
 
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Logger;
@@ -51,8 +50,6 @@ public class Console {
 
     public static void console(Context cx, ScriptableObject scope,
             PrintStream ps, InputStream ins) {
-
-        List<String> exitCmds = Arrays.asList("q,quit,exit".split(","));
 
         ps.println(cx.getImplementationVersion());
 
@@ -96,7 +93,7 @@ public class Console {
                 result = script.exec(cx, scope);
             } catch (RhinoException rex) {
                 // exit if one of the 'exitCmds'
-                if (exitCmds.contains(source.trim())) {
+                if (Arrays.asList("q","quit","exit").contains(source.trim())) {
                     return;
                 }
                 ToolErrorReporter.reportException(

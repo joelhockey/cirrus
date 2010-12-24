@@ -21,6 +21,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IllegalFormatException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -168,11 +169,10 @@ public class Cirrus extends NativeObject {
     public static Scriptable dir(Context cx, Scriptable thisObj,
             Object[] args, Function funObj) {
 
-        RhinoList result = new RhinoList(thisObj, new ArrayList<Object>());
-        if (args == null || args.length == 0
-                || !(args[0] instanceof Scriptable)) {
-            return result;
+        if (args.length == 0 || !(args[0] instanceof Scriptable)) {
+            return cx.newArray(thisObj, 0);
         }
+        List result = new ArrayList();
         Scriptable s = (Scriptable) args[0];
         while (true) {
             Object[] ids = s instanceof ScriptableObject
@@ -188,7 +188,7 @@ public class Cirrus extends NativeObject {
                 result.add("->");
             }
         }
-        return result;
+        return cx.newArray(thisObj, result.toArray());
     }
 
     /**
