@@ -19,8 +19,8 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.tools.debugger.Main;
 
 /**
- * Main servlet for cirrus. Manages ThreadLocal {@link CirrusScope}
- * and dispatches to /app/cirrus.js
+ * Main servlet for cirrus. Dispatches to JavaScript
+ * 'cirrus.service(request, response)'
  * @author Joel Hockey
  */
 public class CirrusServlet extends HttpServlet {
@@ -90,7 +90,10 @@ public class CirrusServlet extends HttpServlet {
      * Calls JavaScript 'cirrus.service(request, response)'
      */
     @Override
-    public void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+    public void service(HttpServletRequest req, HttpServletResponse res)
+            throws ServletException, IOException {
+
+
         try {
             Context cx = Context.enter();
             cx.setWrapFactory(Cirrus.WRAP_FACTORY); // use cirrus WrapFactory
