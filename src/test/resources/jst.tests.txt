@@ -40,38 +40,38 @@ JST.get("Test1");
 
 
 JST.templates["Test1"].render = function (out, cx) { with (cx) { /* Base file */; 
-out.write("Fruit & Veg\r\n\
-{prototype ignored-if-not-first-tag}\r\n\
-\r\n\
-main text hello "); h(name, out); out.write("\r\n\
-{ put some other suff in brackets }\r\n\
+out.write("Fruit & Veg\n\
+{prototype ignored-if-not-first-tag}\n\
+\n\
+main text hello "); h(name, out); out.write("\n\
+{ put some other suff in brackets }\n\
 "); if (!JST.templates["Test1"].hasOwnProperty("showfruit")) { JST.templates["Test1"].showfruit = function (out, cx) { with (cx) { 
-out.write("fruits available:\r\n\
+out.write("fruits available:\n\
 "); var forcounter = 0; for each (var f in fruit) { forcounter++; 
-out.write("fruit: "); h(f, out); if (f === bestfruit) {out.write(" - this is \"the best\"!"); } out.write("\r\n\
+out.write("fruit: "); h(f, out); if (f === bestfruit) {out.write(" - this is \"the best\"!"); } out.write("\n\
 "); } if (forcounter === 0) { 
-out.write("      no fruit\r\n\
+out.write("      no fruit\n\
 "); } 
-out.write("\r\n\
-"); if (likefruit) {out.write("i like fruit"); } else  {out.write("i don't like fruit"); } out.write("\r\n\
+out.write("\n\
+"); if (likefruit) {out.write("i like fruit"); } else  {out.write("i don't like fruit"); } out.write("\n\
 "); } }; }; this.showfruit(out, cx); 
-out.write("\r\n\
+out.write("\n\
 "); if (!JST.templates["Test1"].hasOwnProperty("showveg")) { JST.templates["Test1"].showveg = function (out, cx) { with (cx) { 
-out.write("\r\n\
-vegetables available:\r\n\
+out.write("\n\
+vegetables available:\n\
 "); var forcounter = 0; for each (var v in veg) { forcounter++; 
-out.write("vegetable: "); h(v, out); out.write("\r\n\
+out.write("vegetable: "); h(v, out); out.write("\n\
 "); } if (forcounter === 0) { 
-out.write("      no vegetables\r\n\
+out.write("      no vegetables\n\
 "); } 
-out.write("\r\n\
-yummy vegetables that my kids like to eat:\r\n\
+out.write("\n\
+yummy vegetables that my kids like to eat:\n\
 "); var forcounter = 0; for (var v in yummyveg) { forcounter++; 
-out.write("vegetable: "); h(v, out); out.write("\r\n\
+out.write("vegetable: "); h(v, out); out.write("\n\
 "); } if (forcounter === 0) { 
-out.write("      no yummy veg\r\n\
+out.write("      no yummy veg\n\
 "); } 
-out.write("    \r\n\
+out.write("    \n\
 "); } }; }; this.showveg(out, cx); } };
 -----
 {
@@ -138,13 +138,13 @@ var x = 0;
 var hello = "hello";
 for (var i = 0; i < 5; i++) x++;
 ; 
-out.write("x should be 5: "); h(x, out); out.write("\r\n\
-big hello: "); h(hello.toUpperCase(), out); out.write("\r\n\
+out.write("x should be 5: "); h(x, out); out.write("\n\
+big hello: "); h(hello.toUpperCase(), out); out.write("\n\
 "); 
-out.write("some text with tags like {for}, {/if}, etc\r\n\
+out.write("some text with tags like {for}, {/if}, etc\n\
 "); ; 
 
-out.write("text with {text} tag\r\n\
+out.write("text with {text} tag\n\
 "); ; 
 } };
 -----
@@ -177,8 +177,8 @@ line 2 {* comment is ignored *}
 {* comment - whole {* line is * } ignored *}
 line 3
 -----
-JST.get("Test3"); JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\r\n\
-line 2 \r\n\
+JST.get("Test3"); JST.templates["Test3"].render = function (out, cx) { with (cx) { out.write("line 1\n\
+line 2 \n\
 "); 
 out.write("line 3"); } };
 -----
@@ -194,10 +194,10 @@ top
 bottom {* only single
 line comments {supported *}
 -----
-JST.get("Test4"); JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\r\n\
+JST.get("Test4"); JST.templates["Test4"].render = function (out, cx) { with (cx) { out.write("top\n\
 "); JST.templates["Test3"].render(out, cx); 
-out.write("\r\n\
-bottom {* only single\r\n\
+out.write("\n\
+bottom {* only single\n\
 line comments {supported *}"); } };
 -----
 {}
