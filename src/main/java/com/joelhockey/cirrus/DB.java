@@ -15,19 +15,22 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.sql.DataSource;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.joelhockey.codec.CodecException;
 import com.joelhockey.codec.Hex;
 import com.joelhockey.codec.JSON;
 
@@ -55,14 +58,26 @@ public class DB {
 
     private DataSource dataSource;
     private Connection dbconn;
+    private boolean autoCommit;
 
     /**
-     * Construct DB with data source.
+     * Construct DB with data source and auto-commit=true.
      * This class is NOT thread-safe.
      * @param dataSource data source
      */
     public DB(DataSource dataSource) {
+        this(dataSource, true);
+    }
+
+    /**
+     * Construct DB with data source and specified auto-commit.
+     * This class is NOT thread-safe.
+     * @param dataSource data source
+     * @param autoCommit true if auto-commit
+     */
+    public DB(DataSource dataSource, boolean autoCommit) {
         this.dataSource = dataSource;
+        this.autoCommit = autoCommit;
     }
 
     /**
@@ -72,6 +87,7 @@ public class DB {
     public void open() throws SQLException {
         if (dbconn == null) {
             dbconn = dataSource.getConnection();
+            dbconn.setAutoCommit(autoCommit);
         } else {
             log.warn("ignoring DB.open, dbconn already open");
         }
@@ -91,6 +107,38 @@ public class DB {
         }
     }
 
+    /** commit - ignores any errors */
+    public void commit() {
+        boolean ok = false;
+        long start = System.currentTimeMillis();
+        try {
+            dbconn.commit();
+            ok = true;
+        } catch (Exception e) {
+            log.error("Commitment issues", e);
+        } finally {
+            long timeTaken = System.currentTimeMillis() - start;
+            log.debug(format("sql: commit : %s : 0 : %05d",
+                ok ? "ok" : "error", timeTaken));
+        }
+    }
+
+    /** rollback - ignores any errors */
+    public void rollback() {
+        boolean ok = false;
+        long start = System.currentTimeMillis();
+        try {
+            dbconn.rollback();
+            ok = true;
+        } catch (Exception e) {
+            log.error("Error rolling back", e);
+        } finally {
+            long timeTaken = System.currentTimeMillis() - start;
+            log.debug(format("sql: rollback : %s : 0 : %05d",
+                ok ? "ok" : "error", timeTaken));
+        }
+    }
+
     /** @return db connection */
     public Connection getConnection() {
         return dbconn;
@@ -102,7 +150,7 @@ public class DB {
      * @throws SQLException
      */
     public void execute(String sql) throws SQLException {
-        update(sql, "execute", EMPTY);
+        executeAndClose(sql, "execute", EMPTY);
     }
 
     /**
@@ -123,7 +171,7 @@ public class DB {
      * @throws SQLException if sql error
      */
     public int insert(String sql, Object... params) throws SQLException {
-        return update(sql, "insert", params);
+        return executeAndClose(sql, "insert", params);
     }
 
     /**
@@ -231,18 +279,18 @@ public class DB {
      * @throws SQLException if sql error
      */
     public int update(String sql, Object... params) throws SQLException {
-        return update(sql, "update", params);
+        return executeAndClose(sql, "update", params);
     }
 
     /**
-     * update.
-     * @param sql sql insert or update statement with '?' for params
-     * @param sqlcmd 'insert' or 'update' used for logging
+     * execute.  Caller must close statement.
+     * @param sql sql execute, insert, update, or delete statement with '?' for params
+     * @param sqlcmd 'execute', 'insert', 'update', 'delete', etc used for logging
      * @param params params
-     * @return number of records inserted or updated
+     * @return prepared statement
      * @throws SQLException if sql error
      */
-    private int update(String sql, String sqlcmd, Object... params) throws SQLException {
+    public PreparedStatement execute(String sql, String sqlcmd, Object... params) throws SQLException {
         long start = System.currentTimeMillis();
         boolean ok = false;
         int count = -1;
@@ -251,15 +299,33 @@ public class DB {
         try {
             stmt = dbconn.prepareStatement(sql);
             setParams(stmt, params);
-
-            count = stmt.executeUpdate();
+            if (!stmt.execute()) { // returns false if result is count
+                count = stmt.getUpdateCount();
+            }
             ok = true;
-            return count;
+            return stmt;
         } finally {
             long timeTaken = System.currentTimeMillis() - start;
             log.debug(format("sql: %s : %s : %d : %05d : %s : %s",
                     sqlcmd, ok ? "ok" : "error", count, timeTaken, sql,
                     JSON.stringify(params)));
+        }
+    }
+
+    /**
+     * execute.
+     * @param sql sql execute, insert, update, or delete statement with '?' for params
+     * @param sqlcmd 'execute', 'insert', 'update', 'delete', etc used for logging
+     * @param params params
+     * @return number of records inserted or updated
+     * @throws SQLException if sql error
+     */
+    private int executeAndClose(String sql, String sqlcmd, Object... params) throws SQLException {
+        PreparedStatement stmt = null;
+        try {
+            stmt = execute(sql, sqlcmd, params);
+            return stmt.getUpdateCount();
+        } finally {
             if (stmt != null) {
                 try {
                     stmt.close();
@@ -288,7 +354,7 @@ public class DB {
      * @throws SQLException if sql error
      */
     public int delete(String sql, Object... params) throws SQLException {
-        return update(sql, "delete", params);
+        return executeAndClose(sql, "delete", params);
     }
 
     /**
@@ -567,4 +633,127 @@ public class DB {
             sb.append(cbuf, 0, l);
         }
     }
+
+    /**
+     * Migrate database to specified version using
+     * files from '/db/migrate/'
+     * @param versionRequired optional version to migrate to if null,
+     * will use all available files in '/db/migrate/'
+     * @return previous version
+     * @throws SQLException if sql error
+     * @throws IOException if error reading files
+     */
+    public int migrate(Integer versionRequired) throws SQLException, IOException {
+        // create timer, and DB object
+        Timer timer = new Timer();
+        timer.start();
+        boolean needToClose = false;
+        if (dbconn == null) {
+            needToClose = true;
+            open();
+        }
+        try {
+            int versionCurrent;
+            try {
+                // get current version from 'db_version' table
+                versionCurrent = selectInt("select max(version) from db_version");
+            } catch (Exception e) {
+                // error reading from 'db_version' table, try init script
+                log.warn("Error getting dbversion, will try and load init script: " + e);
+                String sql = Resource.readFile("/db/000_init.sql");
+                execute(sql);
+                insert("insert into db_version (version, filename, script) values (0, '000_init.sql', ?)", sql);
+                timer.mark("db init");
+                versionCurrent = selectInt("select max(version) from db_version");
+            }
+
+            // check if up to date
+            String msg = "db at version: " + versionCurrent
+                + ", app requires version: " + versionRequired;
+            if (versionRequired != null && versionCurrent == versionRequired.intValue()) {
+                log.info("db version ok.  " + msg);
+                return versionCurrent;
+            } else if (versionRequired != null
+                    && versionCurrent > versionRequired.intValue()) {
+                // very strange
+                throw new SQLException(msg);
+            }
+
+            // move from versionCurrent to versionRequired
+            log.info("db migration: " + msg);
+
+            // look in dir '/db/migrate' to find required files
+            Set<String> files = Resource.getResourcePaths("/db/migrate/");
+            if (files == null || files.size() == 0) {
+                throw new SQLException("No files found in /db/migrate/");
+            }
+            log.info("files in '/db/migrate/': " + files);
+            Map<Integer, String> fileMap = new HashMap<Integer, String>();
+            int versionMax = 0;
+            Pattern p = Pattern.compile("^\\/db\\/migrate\\/(\\d{3})_.*\\.sql$");
+            for (String file : files) {
+                // check for filename format <nnn>_<description>.sql
+                Matcher m = p.matcher(file);
+                if (m.matches()) {
+                    int filenum = Integer.parseInt(m.group(1));
+                    versionMax = Math.max(versionMax, filenum);
+                    if (filenum > versionCurrent) {
+                        // check for duplicates
+                        String existing = fileMap.get(file);
+                        if (existing != null) {
+                            throw new java.sql.SQLException(
+                                    "Found duplicate file for migration: "
+                                    + existing + ", " + file);
+                        }
+                        fileMap.put(filenum, file);
+                    }
+                }
+            }
+
+            // if versionRequired not provided, set to max version found
+            if (versionRequired == null) {
+                log.warn("db migrate target version not provided, "
+                        + "using max value found: " + versionMax);
+                versionRequired = versionMax;
+            }
+
+            // ensure all files exist
+            for (int i = versionCurrent + 1; i <= versionRequired; i++) {
+                if (!fileMap.containsKey(i)) {
+                    throw new SQLException("Migrating from: " + versionCurrent
+                        + " to: " + versionRequired + ", missing file: "
+                        + i + ", got files: " + fileMap);
+                }
+            }
+
+            timer.mark("check version");
+            // run scripts
+            for (int i = versionCurrent + 1; i <= versionRequired; i++) {
+                String script = fileMap.get(i);
+                log.info("db migration running script: " + script);
+                String sql = Resource.readFile(script);
+                insert("insert into db_version (version, filename, script) values (?, ?, ?)", i, script, sql);
+                execute(sql);
+                timer.mark(script);
+            }
+
+            // commit now
+            commit();
+            return versionCurrent;
+        } catch (SQLException sqle) {
+            // rollback on error
+            rollback();
+            throw sqle;
+        } catch (IOException ioe) {
+            // rollback on error
+            rollback();
+            throw ioe;
+        } finally {
+            // only close if we opened this connection
+            if (needToClose) {
+                close();
+            }
+            timer.end("DB migration");
+        }
+    };
 }

@@ -496,7 +496,7 @@ public class Cirrus extends NativeObject {
             log.info("readFile: " + path);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             readFileIntoStream(path, baos);
-            return new String(baos.toByteArray());
+            return baos.toString();
         } else {
             log.info("readFile(stream): " + path);
             OutputStream outs = (OutputStream) Context.jsToJava(objOuts, OutputStream.class);
