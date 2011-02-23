@@ -316,7 +316,7 @@ var h = h || function(s, out) {
        case "<": return "&lt;";
        case ">": return "&gt;";
        case '"': return "&quot;";
-       case "'": return "&apos;";
+       case "'": return "&#39;";
        default: return str;
        } 
     });
