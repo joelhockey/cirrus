@@ -55,7 +55,7 @@ cirrus.migrate = function(version) {
                     if (fileMap[filenum]) {
                         throw new java.sql.SQLException(
                                 "Found duplicate file for migration: "
-                                + fileMap[filenum] + ", " + files[i]);
+                                + fileMap[filenum] + ", " + file);
                     }
                     fileMap[filenum] = file;
                 }
